@@ -1,2 +1,0 @@
-UIB
-https://github.com/hgourvest/uib.git
