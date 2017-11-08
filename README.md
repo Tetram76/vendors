@@ -4,7 +4,7 @@ A dedicated branch by vendor
 
 ## Add a new vendor branch
 
-Add XXX vendor branch.
+This adds XXX vendor branch.
 
 ```shell
 git remote add XXX <url-or-path-to-XXX-repos>
@@ -23,6 +23,8 @@ git push -u origin XXX
 ```
 
 ## Append submodule to main repository
+
+From main repository root:
 
 ```shell
 git submodule add  -b XXX   -- "https://github.com/Tetram76/vendors.git" "libs/delphi/XXX"
