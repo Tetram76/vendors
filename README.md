@@ -15,8 +15,7 @@ git commit -m "Add XXX vendor branch"
 ```
 
 ```shell
-git remote add -t master XXX <url-or-path-to-XXX-repos>
-git fetch XXX
+git remote add -t master XXX <url-or-path-to-XXX-repos> -f
 git read-tree --prefix= -u XXX/master
 git commit -m "Synchronized with public repository"
 git push -u origin XXX
