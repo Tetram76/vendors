@@ -1,4 +1,4 @@
-# vendors
+# Vendors
 
 A dedicated branch by vendor
 
@@ -47,3 +47,36 @@ From main repository root:
 ```shell
 git submodule add  -b XXX   -- "https://github.com/Tetram76/vendors.git" "libs/delphi/XXX"
 ```
+
+## Update existing branch
+
+This update XXX vendor branch.
+
+### Prepare the branch
+
+```shell
+git clone -b XXX https://github.com/Tetram76/vendors.git
+```
+
+### Get the files
+
+#### From a GIT source
+
+```shell
+```
+
+#### From a SVN source
+
+```shell
+rm -rf *
+svn export <url-or-path-to-XXX-repos> . --force
+git add .
+```
+
+### Commit & Push
+
+```shell
+git commit -m "Synchronized with public repository"
+git push
+```
+
