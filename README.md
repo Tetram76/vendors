@@ -68,7 +68,6 @@ git clone -b XXX https://github.com/Tetram76/vendors.git
 #### From a SVN source
 
 ```shell
-rm -rf *
 svn update
 ```
 
