@@ -29,8 +29,8 @@ git read-tree --prefix= -u XXX/master
 #### From a SVN source
 
 ```shell
-svn export <url-or-path-to-XXX-repos> . --force
-git add .
+svn checkout <url-or-path-to-XXX-repos> .
+git add . .svn
 ```
 
 ### Commit & Push
@@ -69,8 +69,13 @@ git clone -b XXX https://github.com/Tetram76/vendors.git
 
 ```shell
 rm -rf *
-svn export <url-or-path-to-XXX-repos> . --force
-git add .
+svn update
+```
+
+Resolve conflicts if any.
+
+```shell
+git add . .svn
 ```
 
 ### Commit & Push
