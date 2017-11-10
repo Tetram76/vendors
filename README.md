@@ -48,7 +48,7 @@ From main repository root:
 git submodule add  -b XXX   -- "https://github.com/Tetram76/vendors.git" "libs/delphi/XXX"
 ```
 
-## Update existing branch
+## Update an existing vendor branch
 
 This update XXX vendor branch.
 
