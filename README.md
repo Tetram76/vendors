@@ -58,6 +58,9 @@ This update XXX vendor branch.
 ### Prepare the branch
 
 ```shell
+# if existing repository
+git checkout XXX
+# else
 git clone -b XXX https://github.com/Tetram76/vendors.git
 ```
 
@@ -66,7 +69,9 @@ git clone -b XXX https://github.com/Tetram76/vendors.git
 #### From a GIT source
 
 ```shell
+# if remote does not exist yet
 git remote add -t master XXX <url-or-path-to-XXX-repos>
+# and then
 git fetch -n XXX
 git merge --squash -s subtree XXX/master
 ```
