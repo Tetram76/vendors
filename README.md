@@ -26,7 +26,7 @@ git commit -m "Add XXX vendor branch"
 ```shell
 git remote add -t master XXX <url-or-path-to-XXX-repos>
 git fetch -n XXX
-git read-tree --prefix= -u XXX/master
+git merge -X subtree=. --allow-unrelated-histories --no-commit XXX/master
 ```
 
 #### From a SVN source
@@ -40,6 +40,9 @@ git add . .svn
 
 ```shell
 git commit -m "Synchronized with public repository"
+# if remote does not exist already
+git remote add origin https://github.com/Tetram76/vendors.git
+# and then 
 git push -u origin XXX
 ```
 
@@ -73,7 +76,7 @@ git clone -b XXX https://github.com/Tetram76/vendors.git
 git remote add -t master XXX <url-or-path-to-XXX-repos>
 # and then
 git fetch -n XXX
-git merge --squash -s subtree XXX/master
+git merge -X subtree=. --allow-unrelated-histories --no-commit XXX/master
 ```
 
 #### From a SVN source
