@@ -91,7 +91,8 @@ git add . .svn
 ### Commit & Push
 
 ```shell
+git reset HEAD .origin.url
+git checkout .origin.url
 git commit -m "Synchronized with public repository"
 git push
 ```
-
