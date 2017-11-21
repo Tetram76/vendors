@@ -58,7 +58,7 @@ This update XXX vendor branch.
 ### Prepare the branch
 
 ```shell
-# if existing repository
+# if in already cloned repository
 git checkout XXX
 # else
 git clone -b XXX https://github.com/Tetram76/vendors.git
