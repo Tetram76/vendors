@@ -63,6 +63,9 @@ git clone -b XXX https://github.com/Tetram76/vendors.git
 #### From a GIT source
 
 ```shell
+git remote add -t master XXX <url-or-path-to-XXX-repos>
+git fetch -n XXX
+git merge --squash -s subtree XXX/master
 ```
 
 #### From a SVN source
