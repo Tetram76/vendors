@@ -21,7 +21,7 @@ git commit -m "Add XXX vendor branch"
 #### From a GIT source
 
 ```shell
-git remote add -t master XXX <url-or-path-to-XXX-repos>
+git remote add -t master XXX < cat .origin.url
 git fetch -n XXX
 git read-tree --prefix= -u XXX/master
 ```
@@ -63,7 +63,7 @@ git clone -b XXX https://github.com/Tetram76/vendors.git
 #### From a GIT source
 
 ```shell
-git remote add -t master XXX <url-or-path-to-XXX-repos>
+git remote add -t master XXX < cat .origin.url
 git fetch -n XXX
 git merge --squash -s subtree XXX/master
 ```
