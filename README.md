@@ -33,7 +33,7 @@ git merge -X subtree=. --allow-unrelated-histories --no-commit XXX/master
 
 ```shell
 svn checkout <url-or-path-to-XXX-repos> .
-git add . .svn
+git add .
 ```
 
 ### Commit & Push
@@ -82,7 +82,10 @@ git merge -X subtree=. --allow-unrelated-histories --no-commit XXX/master
 #### From a SVN source
 
 ```shell
-svn update
+# will remove not shared modifications
+git rm -rf .
+svn checkout <url-or-path-to-XXX-repos> .
+git add .
 ```
 
 Resolve conflicts if any.
