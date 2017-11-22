@@ -13,9 +13,9 @@ git checkout --orphan XXX
 git rm -rf .
 echo "<url-or-path-to-XXX-repos>" > .origin.url
 # if needed :
-# echo "Login: <Login>" >> .origin.url
-# echo "Pwd: <Pwd>" >> .origin.url
-git add .origin.url
+# echo <Login> > .origin.login
+# echo <Pwd> > .origin.password
+git add .origin.*
 git commit -m "Add XXX vendor branch"
 ```
 
@@ -97,8 +97,8 @@ git add . .svn
 ### Commit & Push
 
 ```shell
-git reset HEAD .origin.url
-git checkout .origin.url
+git reset HEAD .origin.*
+git checkout .origin.*
 git commit -m "Synchronized with public repository"
 git push
 ```
