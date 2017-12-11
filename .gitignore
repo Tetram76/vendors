@@ -1,0 +1,25 @@
+*.dcu
+*.~*
+*.local
+*.identcache
+__history
+*.drc
+*.map
+*.exe
+*.dll
+bin/*
+*.cfg
+*.dof
+*.dsk
+*.res
+*.otares
+*.ddp
+
+#Lazarus
+*.rst
+*.ppu
+*.compiled
+*.log
+
+# Other tools
+*.bak
