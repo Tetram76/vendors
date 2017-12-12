@@ -55,7 +55,7 @@
         <DCC_IOChecking>false</DCC_IOChecking>
         <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
         <DCC_Namespace>Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;System;Xml;Data;Datasnap;Web;Soap;Winapi;$(DCC_Namespace)</DCC_Namespace>
-        <DCC_Define>UIBLANG_EN;$(DCC_Define)</DCC_Define>
+        <DCC_Define>FB30;UIBLANG_EN;$(DCC_Define)</DCC_Define>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Android)'!=''">
         <VerInfo_IncludeVerInfo>false</VerInfo_IncludeVerInfo>

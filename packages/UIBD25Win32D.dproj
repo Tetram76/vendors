@@ -59,7 +59,7 @@
         <DesignOnlyPackage>true</DesignOnlyPackage>
         <GenDll>true</GenDll>
         <GenPackage>true</GenPackage>
-        <DCC_Define>UIBLANG_EN;$(DCC_Define)</DCC_Define>
+        <DCC_Define>FB30;UIBLANG_EN;$(DCC_Define)</DCC_Define>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Android)'!=''">
         <BT_BuildType>Debug</BT_BuildType>
