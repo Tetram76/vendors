@@ -75,8 +75,6 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
-        <DCC_HppOutput>..\..\source\hpp\$(Platform)\$(Config)</DCC_HppOutput>
-        <DCC_CBuilderOutput>All</DCC_CBuilderOutput>
         <SanitizedProjectName>PngComponentsD</SanitizedProjectName>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <VerInfo_Keys>CompanyName=;FileDescription=Png Components Runtime;FileVersion=1.2.0.0;InternalName=PngComponents;LegalCopyright=;LegalTrademarks=;OriginalFilename=PngComponents;ProductName=Png Components;ProductVersion=1.2;Comments=</VerInfo_Keys>
