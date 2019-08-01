@@ -122,3 +122,8 @@ git checkout .origin.*
 git commit -m "Synchronized with public repository"
 git push
 ```
+
+in case of multiple branch updates, push can be done once
+```shell
+git push --all
+```
