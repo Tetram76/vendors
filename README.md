@@ -57,7 +57,7 @@ git submodule add -b XXX   -- "https://github.com/Tetram76/vendors.git" "libs/de
 
 ## Remove submodule from main repository
 
-From main repository root:
+**__From main repository root:__**
 
 ```shell
 git submodule deinint --force libs/delphi/XXX
