@@ -37,7 +37,7 @@ interface
 
 uses
   Types, Classes, SysUtils, Math, GR32, GR32_Polygons,
-  GR32_VectorUtils, GR32_Blend;
+  GR32_VectorUtils, GR32_Bindings;
 
 type
   TColor32GradientStop = record
@@ -232,9 +232,23 @@ type
     property Power: TFloat read FPower write FPower;
   end;
 
+  TVoronoiMetric = (vmEuclidean, vmManhattan, vmCustom);
+
+  TVoronoiMetricFunc = function (X, Y: TFloat; Point: TFloatPoint): TFloat;
+
   TVoronoiSampler = class(TCustomArbitrarySparsePointGradientSampler)
+  private
+    FMetric: TVoronoiMetric;
+    FMetricFunc: TVoronoiMetricFunc;
+    procedure SetMetric(const Value: TVoronoiMetric);
+    procedure MetricChanged;
+    procedure SetMetricFunc(const Value: TVoronoiMetricFunc);
   public
+    constructor Create(Metric: TVoronoiMetric = vmEuclidean); virtual;
     function GetSampleFloat(X, Y: TFloat): TColor32; override;
+
+    property Metric: TVoronoiMetric read FMetric write SetMetric;
+    property MetricFunc: TVoronoiMetricFunc read FMetricFunc write SetMetricFunc;
   end;
 
   TGourandShadedDelaunayTrianglesSampler = class(TCustomArbitrarySparsePointGradientSampler)
@@ -439,7 +453,7 @@ type
     procedure SetPoint(Index: Integer; const Value: TFloatPoint); override;
     function GetFillLine: TFillLineEvent; override;
     procedure FillLine(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
     class function Linear3PointInterpolation(A, B, C: TColor32;
       WeightA, WeightB, WeightC: Single): TColor32;
   public
@@ -477,9 +491,9 @@ type
   protected
     function GetFillLine: TFillLineEvent; override;
     procedure FillLine3(Dst: PColor32; DstX, DstY, Count: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
     procedure FillLine(Dst: PColor32; DstX, DstY, Count: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
   public
     procedure BeginRendering; override;
   end;
@@ -494,9 +508,9 @@ type
   protected
     procedure GradientColorsChangedHandler(Sender: TObject);
     procedure FillLineNone(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
     procedure FillLineSolid(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
     procedure GradientFillerChanged; virtual;
     procedure WrapModeChanged; virtual;
   public
@@ -564,28 +578,39 @@ type
     function GetFillLine: TFillLineEvent; override;
 
     procedure FillLineNegative(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32;
+      CombineMode: TCombineMode);
     procedure FillLinePositive(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32;
+      CombineMode: TCombineMode);
     procedure FillLineVertical(Dst: PColor32;
-      DstX, DstY, Length: Integer; AlphaValues: PColor32);
+      DstX, DstY, Length: Integer; AlphaValues: PColor32;
+      CombineMode: TCombineMode);
     procedure FillLineVerticalExtreme(Dst: PColor32; DstX, DstY,
-      Length: Integer; AlphaValues: PColor32);
+      Length: Integer; AlphaValues: PColor32;
+      CombineMode: TCombineMode);
 
     procedure FillLineVerticalPad(Dst: PColor32;
-      DstX, DstY, Length: Integer; AlphaValues: PColor32);
+      DstX, DstY, Length: Integer; AlphaValues: PColor32;
+      CombineMode: TCombineMode);
     procedure FillLineVerticalPadExtreme(Dst: PColor32; DstX, DstY,
-      Length: Integer; AlphaValues: PColor32);
+      Length: Integer; AlphaValues: PColor32;
+      CombineMode: TCombineMode);
     procedure FillLineVerticalWrap(Dst: PColor32;
-      DstX, DstY, Length: Integer; AlphaValues: PColor32);
+      DstX, DstY, Length: Integer; AlphaValues: PColor32;
+      CombineMode: TCombineMode);
     procedure FillLineHorizontalPadPos(Dst: PColor32;
-      DstX, DstY, Length: Integer; AlphaValues: PColor32);
+      DstX, DstY, Length: Integer; AlphaValues: PColor32;
+      CombineMode: TCombineMode);
     procedure FillLineHorizontalPadNeg(Dst: PColor32; DstX, DstY,
-      Length: Integer; AlphaValues: PColor32);
+      Length: Integer; AlphaValues: PColor32;
+      CombineMode: TCombineMode);
     procedure FillLineHorizontalWrapNeg(Dst: PColor32; DstX, DstY,
-      Length: Integer; AlphaValues: PColor32);
+      Length: Integer; AlphaValues: PColor32;
+      CombineMode: TCombineMode);
     procedure FillLineHorizontalWrapPos(Dst: PColor32; DstX, DstY,
-      Length: Integer; AlphaValues: PColor32);
+      Length: Integer; AlphaValues: PColor32;
+      CombineMode: TCombineMode);
 
     procedure UseLookUpTableChanged; override;
     procedure WrapModeChanged; override;
@@ -621,11 +646,11 @@ type
     function GetFillLine: TFillLineEvent; override;
     procedure EllipseBoundsChanged; override;
     procedure FillLinePad(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
     procedure FillLineRepeat(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
     procedure FillLineReflect(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
   public
     constructor Create(Radius: TFloatPoint); overload;
     constructor Create(BoundingBox: TFloatRect); overload;
@@ -652,7 +677,7 @@ type
     function GetFillLine: TFillLineEvent; override;
     procedure EllipseBoundsChanged; override;
     procedure FillLineEllipse(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
   public
     constructor Create(EllipseBounds: TFloatRect); overload;
     constructor Create(EllipseBounds: TFloatRect; FocalPoint: TFloatPoint); overload;
@@ -668,11 +693,17 @@ type
   function Color32FloatPoint(Color: TColor32; X, Y: TFloat): TColor32FloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
   function Color32GradientStop(Offset: TFloat; Color: TColor32): TColor32GradientStop; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
 
+const
+  FID_LINEAR3 = 0;
+  FID_LINEAR4 = 1;
+
+var
+  GradientRegistry: TFunctionRegistry;
+
 implementation
 
 uses
-  GR32_LowLevel, GR32_System, GR32_Math, GR32_Bindings,
-  GR32_Geometry;
+  GR32_LowLevel, GR32_System, GR32_Math, GR32_Geometry, GR32_Blend;
 
 resourcestring
   RCStrIndexOutOfBounds = 'Index out of bounds (%d)';
@@ -688,10 +719,12 @@ const
   clNone32: TColor32 = $00000000;
 
 procedure FillLineAlpha(var Dst, AlphaValues: PColor32; Count: Integer;
-  Color: TColor32); {$IFDEF USEINLINING}inline;{$ENDIF}
+  Color: TColor32; CombineMode: TCombineMode); {$IFDEF USEINLINING}inline;{$ENDIF}
 var
   X: Integer;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   for X := 0 to Count - 1 do
   begin
     BlendMemEx(Color, Dst^, AlphaValues^);
@@ -2095,7 +2128,32 @@ begin
 end;
 
 
+function EuclideanMetric(X, Y: TFloat; Point: TFloatPoint): TFloat;
+begin
+  Result := Sqr(X - Point.X) + Sqr(Y - Point.Y);
+end;
+
+function ManhattanMetric(X, Y: TFloat; Point: TFloatPoint): TFloat;
+begin
+  Result := Abs(X - Point.X) + Abs(Y - Point.Y);
+end;
+
+
 { TVoronoiSampler }
+
+constructor TVoronoiSampler.Create(Metric: TVoronoiMetric = vmEuclidean);
+begin
+  FMetric := Metric;
+  FMetricFunc := EuclideanMetric;
+  case FMetric of
+    vmEuclidean:
+      FMetricFunc := @EuclideanMetric;
+    vmManhattan:
+      FMetricFunc := @ManhattanMetric;
+    vmCustom:
+      raise Exception.Create('Invalid metric');
+  end;
+end;
 
 function TVoronoiSampler.GetSampleFloat(X, Y: TFloat): TColor32;
 var
@@ -2104,10 +2162,10 @@ var
   NearestDistance: TFloat;
 begin
   NearestIndex := 0;
-  NearestDistance := Sqr(X - FColorPoints[0].Point.X) + Sqr(Y - FColorPoints[0].Point.Y);
+  NearestDistance := FMetricFunc(X, Y, FColorPoints[0].Point);
   for Index := 1 to High(FColorPoints) do
   begin
-    Distance := Sqr(X - FColorPoints[Index].Point.X) + Sqr(Y - FColorPoints[Index].Point.Y);
+    Distance := FMetricFunc(X, Y, FColorPoints[Index].Point);
     if Distance < NearestDistance then
     begin
       NearestDistance := Distance;
@@ -2115,6 +2173,32 @@ begin
     end;
   end;
   Result := FColorPoints[NearestIndex].Color32;
+end;
+
+procedure TVoronoiSampler.SetMetric(const Value: TVoronoiMetric);
+begin
+  if FMetric <> Value then
+  begin
+    FMetric := Value;
+    case FMetric of
+      vmEuclidean:
+        FMetricFunc := @EuclideanMetric;
+      vmManhattan:
+        FMetricFunc := @ManhattanMetric;
+    end;
+    MetricChanged;
+  end;
+end;
+
+procedure TVoronoiSampler.SetMetricFunc(const Value: TVoronoiMetricFunc);
+begin
+  FMetricFunc := Value;
+  Metric := vmCustom;
+end;
+
+procedure TVoronoiSampler.MetricChanged;
+begin
+  Changed;
 end;
 
 
@@ -2970,15 +3054,15 @@ begin
 end;
 
 procedure TCustomGradientPolygonFiller.FillLineNone(Dst: PColor32; DstX,
-  DstY, Length: Integer; AlphaValues: PColor32);
+  DstY, Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 begin
   // do nothing!
 end;
 
 procedure TCustomGradientPolygonFiller.FillLineSolid(Dst: PColor32; DstX,
-  DstY, Length: Integer; AlphaValues: PColor32);
+  DstY, Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 begin
-  FillLineAlpha(Dst, AlphaValues, Length, FGradient.StartColor);
+  FillLineAlpha(Dst, AlphaValues, Length, FGradient.StartColor, CombineMode);
 end;
 
 procedure TCustomGradientPolygonFiller.GradientColorsChangedHandler(
@@ -3026,13 +3110,15 @@ begin
 end;
 
 procedure TBarycentricGradientPolygonFiller.FillLine(Dst: PColor32; DstX, DstY,
-  Length: Integer; AlphaValues: PColor32);
+  Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X: Integer;
   Color32: TColor32;
   Temp, DotY1, DotY2: TFloat;
   Barycentric: array [0..1] of TFloat;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   Temp := DstY - FColorPoints[2].Point.Y;
   DotY1 := FDists[0].X * Temp;
   DotY2 := FDists[1].X * Temp;
@@ -3309,10 +3395,12 @@ begin
 end;
 
 procedure TGourandShadedDelaunayTrianglesPolygonFiller.FillLine3(Dst: PColor32;
-  DstX, DstY, Count: Integer; AlphaValues: PColor32);
+  DstX, DstY, Count: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X: Integer;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   for X := DstX to DstX + Count - 1 do
   begin
     BlendMemEx(FBarycentric[0].GetSampleFloat(X, DstY), Dst^, AlphaValues^);
@@ -3323,7 +3411,7 @@ begin
 end;
 
 procedure TGourandShadedDelaunayTrianglesPolygonFiller.FillLine(Dst: PColor32;
-  DstX, DstY, Count: Integer; AlphaValues: PColor32);
+  DstX, DstY, Count: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   Index: Integer;
   U, V, W: TFloat;
@@ -3332,10 +3420,12 @@ var
 
   X: Integer;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 
 label
   DrawColor;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   for X := DstX to DstX + Count - 1 do
   begin
     // check first barycentric interpolator
@@ -3643,8 +3733,10 @@ begin
     GradientCount := FGradientLUT.Size;
 
   case GradientCount of
-    0: Result := FillLineNone;
-    1: Result := FillLineSolid;
+    0:
+      Result := FillLineNone;
+    1:
+      Result := FillLineSolid;
     else
       if FUseLookUpTable then
         case FWrapMode of
@@ -3683,11 +3775,13 @@ begin
 end;
 
 procedure TLinearGradientPolygonFiller.FillLineVertical(Dst: PColor32; DstX,
-  DstY, Length: Integer; AlphaValues: PColor32);
+  DstY, Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X: Integer;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   Color32 := FGradient.GetColorAt((DstY - FStartPoint.Y) * FIncline);
 
   for X := DstX to DstX + Length - 1 do
@@ -3700,11 +3794,13 @@ begin
 end;
 
 procedure TLinearGradientPolygonFiller.FillLineVerticalExtreme(Dst: PColor32;
-  DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  DstX, DstY, Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X: Integer;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   if DstY < FStartPoint.Y then
     Color32 := FGradient.StartColor
   else
@@ -3720,7 +3816,7 @@ begin
 end;
 
 procedure TLinearGradientPolygonFiller.FillLinePositive(Dst: PColor32; DstX,
-  DstY, Length: Integer; AlphaValues: PColor32);
+  DstY, Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X, Index: Integer;
   IntScale, IntValue: Integer;
@@ -3728,7 +3824,10 @@ var
   Scale: TFloat;
   XOffset: array [0..1] of TFloat;
   XPos: array [0..2] of Integer;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
+
   // set first offset/position
   XOffset[0] := ColorStopToScanLine(0, DstY);
   XPos[0] := Round(XOffset[0]);
@@ -3737,7 +3836,7 @@ begin
   // check if only a solid start color should be drawn.
   if XPos[0] >= XPos[2] - 1 then
   begin
-    FillLineSolid(Dst, DstX, DstY, Length, AlphaValues);
+    FillLineSolid(Dst, DstX, DstY, Length, AlphaValues, CombineMode);
     Exit;
   end;
 
@@ -3745,7 +3844,7 @@ begin
   Colors[0] := FGradient.FGradientColors[0].Color32;
 
   // eventually draw solid start color
-  FillLineAlpha(Dst, AlphaValues, XPos[0] - DstX, Colors[0]);
+  FillLineAlpha(Dst, AlphaValues, XPos[0] - DstX, Colors[0], CombineMode);
 
   Index := 1;
   repeat
@@ -3795,12 +3894,12 @@ begin
   if XPos[0] < DstX then
     XPos[0] := DstX;
 
-  FillLineAlpha(Dst, AlphaValues, XPos[2] - XPos[0], Colors[0]);
+  FillLineAlpha(Dst, AlphaValues, XPos[2] - XPos[0], Colors[0], CombineMode);
 end;
 
 
 procedure TLinearGradientPolygonFiller.FillLineNegative(Dst: PColor32; DstX,
-  DstY, Length: Integer; AlphaValues: PColor32);
+  DstY, Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X, Index: Integer;
   IntScale, IntValue: Integer;
@@ -3808,7 +3907,9 @@ var
   Scale: TFloat;
   XOffset: array [0..1] of TFloat;
   XPos: array [0..2] of Integer;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   Index := FGradient.GradientCount - 1;
 
   // set first offset/position
@@ -3822,12 +3923,12 @@ begin
   // check if only a solid start color should be drawn.
   if XPos[0] >= XPos[2] - 1 then
   begin
-    FillLineAlpha(Dst, AlphaValues, Length, Colors[0]);
+    FillLineAlpha(Dst, AlphaValues, Length, Colors[0], CombineMode);
     Exit;
   end;
 
   // eventually draw solid start color
-  FillLineAlpha(Dst, AlphaValues, XPos[0] - DstX, Colors[0]);
+  FillLineAlpha(Dst, AlphaValues, XPos[0] - DstX, Colors[0], CombineMode);
 
   Dec(Index);
   repeat
@@ -3877,15 +3978,18 @@ begin
   if XPos[0] < DstX then
     XPos[0] := DstX;
 
-  FillLineAlpha(Dst, AlphaValues, XPos[2] - XPos[0], Colors[0]);
+  FillLineAlpha(Dst, AlphaValues, XPos[2] - XPos[0], Colors[0], CombineMode);
 end;
 
 procedure TLinearGradientPolygonFiller.FillLineVerticalPad(
-  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32;
+  CombineMode: TCombineMode);
 var
   X: Integer;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   Color32 := FGradientLUT.Color32Ptr^[FWrapProc(Round(FGradientLUT.Mask *
     (DstY - FStartPoint.Y) * FIncline), FGradientLUT.Mask)];
 
@@ -3899,11 +4003,14 @@ begin
 end;
 
 procedure TLinearGradientPolygonFiller.FillLineVerticalPadExtreme(
-  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32;
+  CombineMode: TCombineMode);
 var
   X: Integer;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   if DstY < FStartPoint.Y then
     Color32 := FGradientLUT.Color32Ptr^[0]
   else
@@ -3919,11 +4026,14 @@ begin
 end;
 
 procedure TLinearGradientPolygonFiller.FillLineVerticalWrap(
-  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32;
+  CombineMode: TCombineMode);
 var
   X: Integer;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   X := Round(FGradientLUT.Mask * (DstY - FStartPoint.Y) * FIncline);
   Color32 := FGradientLUT.Color32Ptr^[FWrapProc(X, Integer(FGradientLUT.Mask))];
 
@@ -3937,13 +4047,16 @@ begin
 end;
 
 procedure TLinearGradientPolygonFiller.FillLineHorizontalPadPos(
-  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32;
+  CombineMode: TCombineMode);
 var
   X, XPos, Count, Mask: Integer;
   ColorLUT: PColor32Array;
   Scale: TFloat;
   XOffset: array [0..1] of TFloat;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   XOffset[0] := FStartPoint.X + (FStartPoint.Y - DstY) * FIncline;
   XOffset[1] := FEndPoint.X + (FEndPoint.Y - DstY) * FIncline;
 
@@ -3954,7 +4067,7 @@ begin
   // check if only a solid start color should be drawn.
   if XPos >= DstX + Length then
   begin
-    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[0]);
+    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[0], CombineMode);
     Exit;
   end;
 
@@ -3963,7 +4076,7 @@ begin
   // check if only a solid end color should be drawn.
   if XPos + Count < DstX then
   begin
-    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[Mask]);
+    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[Mask], CombineMode);
     Exit;
   end;
 
@@ -3980,13 +4093,16 @@ begin
 end;
 
 procedure TLinearGradientPolygonFiller.FillLineHorizontalPadNeg(
-  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32;
+  CombineMode: TCombineMode);
 var
   X, XPos, Count, Mask: Integer;
   ColorLUT: PColor32Array;
   Scale: TFloat;
   XOffset: array [0..1] of TFloat;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   XOffset[0] := FEndPoint.X + (FEndPoint.Y - DstY) * FIncline;
   XOffset[1] := FStartPoint.X + (FStartPoint.Y - DstY) * FIncline;
 
@@ -3999,14 +4115,14 @@ begin
   // check if only a solid start color should be drawn.
   if XPos >= DstX + Length then
   begin
-    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[Mask]);
+    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[Mask], CombineMode);
     Exit;
   end;
 
   // check if only a solid end color should be drawn.
   if XPos + Count < DstX then
   begin
-    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[0]);
+    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[0], CombineMode);
     Exit;
   end;
 
@@ -4023,13 +4139,16 @@ begin
 end;
 
 procedure TLinearGradientPolygonFiller.FillLineHorizontalWrapPos(
-  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32;
+  CombineMode: TCombineMode);
 var
   X, Index, Mask: Integer;
   ColorLUT: PColor32Array;
   Scale: TFloat;
   XOffset: array [0..1] of TFloat;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   XOffset[0] := FStartPoint.X + (FStartPoint.Y - DstY) * FIncline;
   XOffset[1] := FEndPoint.X + (FEndPoint.Y - DstY) * FIncline;
   Mask := Integer(FGradientLUT.Mask);
@@ -4048,13 +4167,16 @@ begin
 end;
 
 procedure TLinearGradientPolygonFiller.FillLineHorizontalWrapNeg(
-  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  Dst: PColor32; DstX, DstY, Length: Integer; AlphaValues: PColor32;
+  CombineMode: TCombineMode);
 var
   X, Index, Mask: Integer;
   ColorLUT: PColor32Array;
   Scale: TFloat;
   XOffset: array [0..1] of TFloat;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   XOffset[0] := FEndPoint.X + (FEndPoint.Y - DstY) * FIncline;
   XOffset[1] := FStartPoint.X + (FStartPoint.Y - DstY) * FIncline;
   Mask := Integer(FGradientLUT.Mask);
@@ -4214,14 +4336,16 @@ begin
 end;
 
 procedure TRadialGradientPolygonFiller.FillLinePad(Dst: PColor32; DstX,
-  DstY, Length: Integer; AlphaValues: PColor32);
+  DstY, Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X, Index, Count, Mask: Integer;
   SqrRelRad, RadMax: TFloat;
   ColorLUT: PColor32Array;
   YDist, SqrInvRadius: TFloat;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   Mask := Integer(FGradientLUT.Mask);
   ColorLUT := FGradientLUT.Color32Ptr;
 
@@ -4230,7 +4354,7 @@ begin
   if Index > DstX then
   begin
     Count := Min((Index - DstX), Length);
-    FillLineAlpha(Dst, AlphaValues, Count, ColorLUT^[Mask]);
+    FillLineAlpha(Dst, AlphaValues, Count, ColorLUT^[Mask], CombineMode);
     Length := Length - Count;
     if Length = 0 then
       Exit;
@@ -4240,7 +4364,7 @@ begin
   // further optimization
   if Abs(DstY - FCenter.Y) > FRadius.Y then
   begin
-    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[Mask]);
+    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[Mask], CombineMode);
     Exit;
   end;
 
@@ -4265,14 +4389,17 @@ begin
 end;
 
 procedure TRadialGradientPolygonFiller.FillLineReflect(Dst: PColor32;
-  DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  DstX, DstY, Length: Integer; AlphaValues: PColor32;
+  CombineMode: TCombineMode);
 var
   X, Index, Mask, DivResult: Integer;
   SqrInvRadius: TFloat;
   YDist: TFloat;
   ColorLUT: PColor32Array;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   SqrInvRadius := Sqr(FRadXInv);
   YDist := Sqr((DstY - FCenter.Y) * FRadScale);
   Mask := Integer(FGradientLUT.Mask);
@@ -4294,13 +4421,15 @@ begin
 end;
 
 procedure TRadialGradientPolygonFiller.FillLineRepeat(Dst: PColor32;
-  DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  DstX, DstY, Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X, Mask: Integer;
   YDist, SqrInvRadius: TFloat;
   ColorLUT: PColor32Array;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   SqrInvRadius := Sqr(FRadXInv);
   YDist := Sqr((DstY - FCenter.Y) * FRadScale);
   Mask := Integer(FGradientLUT.Mask);
@@ -4439,7 +4568,8 @@ begin
 end;
 
 procedure TSVGRadialGradientPolygonFiller.FillLineEllipse(Dst: PColor32;
-  DstX, DstY, Length: Integer; AlphaValues: PColor32);
+  DstX, DstY, Length: Integer; AlphaValues: PColor32;
+  CombineMode: TCombineMode);
 var
   X, Mask: Integer;
   ColorLUT: PColor32Array;
@@ -4447,7 +4577,9 @@ var
   m, b, Qa, Qb, Qc, Qz, XSqr: Double;
   RelPos: TFloatPoint;
   Color32: TColor32;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   if (FRadius.X = 0) or (FRadius.Y = 0) then
     Exit;
 
@@ -4459,7 +4591,7 @@ begin
   // check if out of bounds (vertically)
   if (DstY < FOffset.Y) or (DstY >= (FRadius.Y * 2) + 1 + FOffset.Y) then
   begin
-    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[Mask]);
+    FillLineAlpha(Dst, AlphaValues, Length, ColorLUT^[Mask], CombineMode);
     Exit;
   end;
 
@@ -4529,28 +4661,24 @@ begin
   end;
 end;
 
-const
-  FID_LINEAR3 = 0;
-  FID_LINEAR4 = 1;
-
 procedure RegisterBindings;
 begin
-  BlendRegistry := NewRegistry('GR32_ColorGradients bindings');
-  BlendRegistry.RegisterBinding(FID_LINEAR3, @@Linear3PointInterpolationProc);
-  BlendRegistry.RegisterBinding(FID_LINEAR4, @@Linear4PointInterpolationProc);
+  GradientRegistry := NewRegistry('GR32_ColorGradients bindings');
+  GradientRegistry.RegisterBinding(FID_LINEAR3, @@Linear3PointInterpolationProc);
+  GradientRegistry.RegisterBinding(FID_LINEAR4, @@Linear4PointInterpolationProc);
 
   // pure pascal
-  BlendRegistry.Add(FID_LINEAR3, @Linear3PointInterpolation_Pas);
-  BlendRegistry.Add(FID_LINEAR4, @Linear4PointInterpolation_Pas);
+  GradientRegistry.Add(FID_LINEAR3, @Linear3PointInterpolation_Pas);
+  GradientRegistry.Add(FID_LINEAR4, @Linear4PointInterpolation_Pas);
 
 {$IFNDEF PUREPASCAL}
 {$IFNDEF OMIT_SSE2}
-  BlendRegistry.Add(FID_LINEAR3, @Linear3PointInterpolation_SSE2, [ciSSE2]);
-  BlendRegistry.Add(FID_LINEAR4, @Linear4PointInterpolation_SSE2, [ciSSE2]);
+  GradientRegistry.Add(FID_LINEAR3, @Linear3PointInterpolation_SSE2, [ciSSE2]);
+  GradientRegistry.Add(FID_LINEAR4, @Linear4PointInterpolation_SSE2, [ciSSE2]);
 {$ENDIF}
 {$ENDIF}
 
-  BlendRegistry.RebindAll;
+  GradientRegistry.RebindAll;
 end;
 
 initialization

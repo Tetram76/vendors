@@ -6,7 +6,7 @@ interface
 
 uses
   {$IFDEF FPC}LCLIntf, {$ELSE}Windows, {$ENDIF} Messages, SysUtils, Classes,
-  Graphics, Controls, Forms, Dialogs, ExtCtrls, GR32, GR32_Image, StdCtrls,
+  Graphics, Controls, Forms, Dialogs, ExtCtrls, StdCtrls, GR32, GR32_Image,
   GR32_RangeBars;
 
 type
@@ -35,7 +35,7 @@ var
 implementation
 
 uses
-  GR32_LowLevel, GR32_VectorUtils, GR32_Polygons;
+  GR32_LowLevel, GR32_Gamma, GR32_VectorUtils, GR32_Polygons;
 
 {$IFDEF FPC}
 {$R *.lfm}
@@ -57,10 +57,12 @@ begin
 end;
 
 procedure TFrmGammaCorrection.GbrGammaChange(Sender: TObject);
+var
+  GammaValue: Double;
 begin
-  LblGammaValue.Caption := FloatToStrF(0.01 * GbrGamma.Position, ffFixed, 3,
-    3);
-  SetGamma(0.01 * GbrGamma.Position);
+  GammaValue := 0.001 * GbrGamma.Position;
+  LblGammaValue.Caption := FloatToStrF(GammaValue, ffFixed, 4, 3);
+  SetGamma(GammaValue);
   PaintBox32.Invalidate;
 end;
 
@@ -108,7 +110,7 @@ begin
     SetLength(Outline, 256);
     for Index := 0 to High(Byte) do
     begin
-      DeltaY := GAMMA_TABLE[Index];
+      DeltaY := GAMMA_ENCODING_TABLE[Index];
 
       Outline[Index] := FloatPoint(StartPnt.X + Index, StartPnt.Y + 255 - DeltaY)
     end;
@@ -146,9 +148,5 @@ begin
     Renderer.Free;
   end;
 end;
-
-initialization
-
-  SetGamma(1);
 
 end.

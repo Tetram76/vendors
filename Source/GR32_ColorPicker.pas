@@ -81,9 +81,9 @@ type
   protected
     function GetFillLine: TFillLineEvent; override;
     procedure FillLine(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32); virtual;
+      AlphaValues: PColor32; CombineMode: TCombineMode); virtual;
     procedure FillLineWebSafe(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32); virtual;
+      AlphaValues: PColor32; CombineMode: TCombineMode); virtual;
   public
     constructor Create(Center: TFloatPoint; WebSafe: Boolean = False);
 
@@ -99,9 +99,9 @@ type
     procedure SetRadius(const Value: Single);
   protected
     procedure FillLine(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32); override;
+      AlphaValues: PColor32; CombineMode: TCombineMode); override;
     procedure FillLineWebSafe(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32); override;
+      AlphaValues: PColor32; CombineMode: TCombineMode); override;
   public
     constructor Create(Center: TFloatPoint; Radius, Value: Single;
       WebSafe: Boolean = False);
@@ -116,7 +116,7 @@ type
   protected
     function GetFillLine: TFillLineEvent; override;
     procedure FillLineWebSafe(Dst: PColor32; DstX, DstY, Length: Integer;
-      AlphaValues: PColor32);
+      AlphaValues: PColor32; CombineMode: TCombineMode);
   public
     property WebSafe: Boolean read FWebSafe write FWebSafe;
   end;
@@ -342,7 +342,7 @@ type
     property DragCursor;
     property DragKind;
     property Enabled;
-{$IFNDEF FPC}
+{$IFDEF HasParentBackground}
     property ParentBackground;
 {$ENDIF}
     property ParentColor;
@@ -386,7 +386,7 @@ type
     property DragCursor;
     property DragKind;
     property Enabled;
-{$IFNDEF FPC}
+{$IFDEF HasParentBackground}
     property ParentBackground;
 {$ENDIF}
     property ParentColor;
@@ -431,7 +431,7 @@ type
     property Enabled;
     property Hue;
     property MarkerType;
-{$IFNDEF FPC}
+{$IFDEF HasParentBackground}
     property ParentBackground;
 {$ENDIF}
     property ParentColor;
@@ -475,7 +475,7 @@ type
     property DragKind;
     property Enabled;
     property Hue;
-{$IFNDEF FPC}
+{$IFDEF HasParentBackground}
     property ParentBackground;
 {$ENDIF}
     property ParentColor;
@@ -522,7 +522,7 @@ type
     property DragKind;
     property Enabled;
     property Hue;
-{$IFNDEF FPC}
+{$IFDEF HasParentBackground}
     property ParentBackground;
 {$ENDIF}
     property ParentColor;
@@ -692,7 +692,9 @@ end;
 
 procedure TScreenColorPickerForm.MouseMove(Shift: TShiftState; X, Y: Integer);
 begin
+  {$IFDEF MSWINDOWS}
   FSelectedColor := GetDesktopColor(X, Y);
+  {$ENDIF}
   inherited;
 end;
 
@@ -709,7 +711,7 @@ begin
 end;
 
 procedure THueCirclePolygonFiller.FillLine(Dst: PColor32; DstX, DstY,
-  Length: Integer; AlphaValues: PColor32);
+  Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X: Integer;
   H: Single;
@@ -728,7 +730,7 @@ begin
 end;
 
 procedure THueCirclePolygonFiller.FillLineWebSafe(Dst: PColor32; DstX, DstY,
-  Length: Integer; AlphaValues: PColor32);
+  Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X: Integer;
   H: Single;
@@ -771,7 +773,7 @@ begin
 end;
 
 procedure THueSaturationCirclePolygonFiller.FillLine(Dst: PColor32; DstX, DstY,
-  Length: Integer; AlphaValues: PColor32);
+  Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X: Integer;
   SqrYDist, H, S: Single;
@@ -795,7 +797,7 @@ begin
 end;
 
 procedure THueSaturationCirclePolygonFiller.FillLineWebSafe(Dst: PColor32; DstX, DstY,
-  Length: Integer; AlphaValues: PColor32);
+  Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X: Integer;
   SqrYDist, H, S: Single;
@@ -835,13 +837,15 @@ end;
 { TBarycentricGradientPolygonFillerEx }
 
 procedure TBarycentricGradientPolygonFillerEx.FillLineWebSafe(Dst: PColor32; DstX,
-  DstY, Length: Integer; AlphaValues: PColor32);
+  DstY, Length: Integer; AlphaValues: PColor32; CombineMode: TCombineMode);
 var
   X: Integer;
   Color32: TColor32;
   Temp, DotY1, DotY2: TFloat;
   Barycentric: array [0..1] of TFloat;
+  BlendMemEx: TBlendMemEx;
 begin
+  BlendMemEx := BLEND_MEM_EX[CombineMode]^;
   Temp := DstY - FColorPoints[2].Point.Y;
   DotY1 := FDists[0].X * Temp;
   DotY2 := FDists[1].X * Temp;
@@ -1107,7 +1111,9 @@ begin
             for X := 3 to Width - 4 do
               ScanLine^[X] := CCheckerBoardColor[Odd(X shr 3) = OddY];
           end;
-        end;
+        end
+      else
+        Exit;
     end;
 
     GradientFiller := TLinearGradientPolygonFiller.Create;
@@ -1337,6 +1343,8 @@ begin
                 ScanLine^[X] := CCheckerBoardColor[Odd(X shr 3) = OddY];
             end;
           end;
+        else
+          Exit;
       end;
 
       GradientFiller := TLinearGradientPolygonFiller.Create;

@@ -35,6 +35,7 @@ type
     TabSheet3: TTabSheet;
     TbrBlurAngle: TTrackBar;
     TbrBlurRadius: TTrackBar;
+    CheckBoxCorrectGamma: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure MnuExitClick(Sender: TObject);
@@ -105,7 +106,7 @@ var
   JPEG: TJPEGImage;
 begin
   JPEG := TJPEGImage.Create;
-  ResStream := TResourceStream.Create(hInstance, ResName, 'JPG');
+  ResStream := TResourceStream.Create(hInstance, ResName, RT_RCDATA);
   try
     JPEG.LoadFromStream(ResStream);
     Bmp32.Assign(JPEG);
@@ -170,12 +171,14 @@ var
   Radius: Integer;
   Rec, Rec2: TRect;
   Pts, Pts2: TArrayOfFloatPoint;
+  WithGamma: Boolean;
 begin
   if FReDrawFlag then
     Exit;
   FReDrawFlag := True;
   Radius := TbrBlurRadius.Position;
   Screen.Cursor := crHourGlass;
+  WithGamma := CheckBoxCorrectGamma.Checked;
   case PageControl.ActivePageIndex of
     0:
       begin
@@ -184,10 +187,17 @@ begin
 
         FPerfTimer.Start;
         case RgpBlurType.ItemIndex of
-          1: GaussianBlur(ImgViewPage1.Bitmap, Radius);
-          2: FastBlur(ImgViewPage1.Bitmap, Radius);
-          3: MotionBlur(ImgViewPage1.Bitmap, Radius,
-               TbrBlurAngle.Position, CbxBidirectional.Checked);
+          1:
+            GaussianBlurSimple[WithGamma](ImgViewPage1.Bitmap, Radius);
+          2:
+            FastBlurSimple[WithGamma](ImgViewPage1.Bitmap, Radius);
+          3:
+            if WithGamma then
+              MotionBlurGamma(ImgViewPage1.Bitmap, Radius,
+               TbrBlurAngle.Position, CbxBidirectional.Checked)
+            else
+              MotionBlur(ImgViewPage1.Bitmap, Radius,
+               TbrBlurAngle.Position, CbxBidirectional.Checked)
         end;
         FDuration := FPerfTimer.ReadMilliseconds;
         ImgViewPage1.EndUpdate;
@@ -206,15 +216,23 @@ begin
         case RgpBlurType.ItemIndex of
           1:
             begin
-              GaussianBlur(ImgViewPage2.Bitmap, Radius, Pts);
-              GaussianBlur(ImgViewPage2.Bitmap, Radius, Pts2);
+              GaussianBlurRegion[WithGamma](ImgViewPage2.Bitmap, Radius, Pts);
+              GaussianBlurRegion[WithGamma](ImgViewPage2.Bitmap, Radius, Pts2);
             end;
           2:
             begin
-              FastBlur(ImgViewPage2.Bitmap, Radius, Pts);
-              FastBlur(ImgViewPage2.Bitmap, Radius, Pts2);
+              FastBlurRegion[WithGamma](ImgViewPage2.Bitmap, Radius, Pts);
+              FastBlurRegion[WithGamma](ImgViewPage2.Bitmap, Radius, Pts2);
             end;
           3:
+            if WithGamma then
+            begin
+              MotionBlurGamma(ImgViewPage2.Bitmap, Radius, TbrBlurAngle.Position,
+                Pts, CbxBidirectional.Checked);
+              MotionBlurGamma(ImgViewPage2.Bitmap, Radius, TbrBlurAngle.Position,
+                Pts2, CbxBidirectional.Checked);
+            end
+            else
             begin
               MotionBlur(ImgViewPage2.Bitmap, Radius, TbrBlurAngle.Position,
                 Pts, CbxBidirectional.Checked);
@@ -257,17 +275,27 @@ begin
         case RgpBlurType.ItemIndex of
           1:
             begin
-              GaussianBlur(ImgViewPage3.Bitmap, Radius, Rec);
-              GaussianBlur(FBmpLayer.Bitmap, Radius, Rec2);
-              GaussianBlur(FBmpLayer.Bitmap, Radius, Pts);
+              GaussianBlurBounds[WithGamma](ImgViewPage3.Bitmap, Radius, Rec);
+              GaussianBlurBounds[WithGamma](FBmpLayer.Bitmap, Radius, Rec2);
+              GaussianBlurRegion[WithGamma](FBmpLayer.Bitmap, Radius, Pts);
             end;
           2:
             begin
-              FastBlur(ImgViewPage3.Bitmap, Radius, Rec);
-              FastBlur(FBmpLayer.Bitmap, Radius, Rec2);
-              FastBlur(FBmpLayer.Bitmap, Radius, Pts);
+              FastBlurBounds[WithGamma](ImgViewPage3.Bitmap, Radius, Rec);
+              FastBlurBounds[WithGamma](FBmpLayer.Bitmap, Radius, Rec2);
+              FastBlurRegion[WithGamma](FBmpLayer.Bitmap, Radius, Pts);
             end;
           3:
+            if WithGamma then
+            begin
+              MotionBlurGamma(ImgViewPage3.Bitmap, Radius,
+                TbrBlurAngle.Position, Rec, CbxBidirectional.Checked);
+              MotionBlurGamma(FBmpLayer.Bitmap, Radius,
+                TbrBlurAngle.Position, Rec2, CbxBidirectional.Checked);
+              MotionBlurGamma(FBmpLayer.Bitmap, Radius,
+                TbrBlurAngle.Position, Pts, CbxBidirectional.Checked);
+            end
+            else
             begin
               MotionBlur(ImgViewPage3.Bitmap, Radius,
                 TbrBlurAngle.Position, Rec, CbxBidirectional.Checked);
@@ -362,4 +390,3 @@ begin
 end;
 
 end.
-

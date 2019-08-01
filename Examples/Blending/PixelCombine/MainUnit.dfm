@@ -3,7 +3,7 @@ object FormPixelCombine: TFormPixelCombine
   Top = 110
   Caption = 'PixelCombine Example'
   ClientHeight = 346
-  ClientWidth = 516
+  ClientWidth = 564
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -13,14 +13,14 @@ object FormPixelCombine: TFormPixelCombine
   OldCreateOrder = False
   OnCreate = FormCreate
   DesignSize = (
-    516
+    564
     346)
   PixelsPerInch = 96
   TextHeight = 13
   object ImgView: TImgView32
     Left = 16
     Top = 20
-    Width = 367
+    Width = 393
     Height = 309
     Anchors = [akLeft, akTop, akRight, akBottom]
     Bitmap.ResamplerClassName = 'TNearestResampler'
@@ -36,23 +36,29 @@ object FormPixelCombine: TFormPixelCombine
     TabOrder = 0
   end
   object RadioGroup: TRadioGroup
-    Left = 394
+    Left = 415
     Top = 20
-    Width = 109
-    Height = 189
+    Width = 141
+    Height = 285
     Anchors = [akTop, akRight]
     Caption = 'Operation'
     ItemIndex = 0
     Items.Strings = (
-      'Opaque'
-      'Add'
+      'Opaque (none)'
+      'Add / Plus / Lighter'
       'Sub'
-      'Modulate'
-      'Min'
-      'Max'
+      'Modulate / Multiply'
+      'Min / Darken'
+      'Max / Lighten'
+      'Screen'
+      'Color-Dodge'
+      'Color-Burn'
       'Difference'
       'Exclusion'
-      'Pattern')
+      'Pattern'
+      'Blend'
+      'Blend Add'
+      'Blend Modulate')
     TabOrder = 1
     OnClick = RadioGroupClick
   end

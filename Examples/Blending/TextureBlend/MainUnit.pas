@@ -36,7 +36,7 @@ interface
 {$I GR32.inc}
 
 uses
-  {$IFDEF FPC}LCLIntf, LResources, Buttons, {$ENDIF}
+  {$IFNDEF FPC} Windows, {$ELSE} LCLIntf, LResources, Buttons, {$ENDIF}
   SysUtils, Classes, Graphics, Controls, Forms, Math, StdCtrls, ExtCtrls,
   GR32_Image, GR32_RangeBars;
 
@@ -119,7 +119,7 @@ begin
   // Load the textures (note size 256x256 is implicity expected!)
   JPEG := TJPEGImage.Create;
   try
-    ResStream := TResourceStream.Create(HInstance, 'TextureA', 'JPG');
+    ResStream := TResourceStream.Create(HInstance, 'TextureA', RT_RCDATA);
     try
       JPEG.LoadFromStream(ResStream);
     finally
@@ -127,7 +127,7 @@ begin
     end;
     TexAImg.Bitmap.Assign(JPEG);
 
-    ResStream := TResourceStream.Create(HInstance, 'TextureB', 'JPG');
+    ResStream := TResourceStream.Create(HInstance, 'TextureB', RT_RCDATA);
     try
       JPEG.LoadFromStream(ResStream);
     finally
@@ -195,12 +195,14 @@ begin
         WImg^ := ColorDifference(WImg^, $FF000000 + W shl 16 + W shl 8 + W)
       else
         WImg^ := $FF000000 + W shl 16 + W shl 8 + W;
+
       EMMS;
+
       D^ := D^ and $00FFFFFF or W shl 24;
       Inc(D);
       Inc(WImg);
     end;
-  EMMS;
+
   WeightmapImg.Invalidate;
   MasterAlphaBarChange(Self);
 end;
@@ -209,7 +211,7 @@ procedure TMainForm.MasterAlphaBarChange(Sender: TObject);
 var
   ABlendRegEx: TBlendRegEx;
 begin
-  //Setup blendmode
+  // Setup blendmode
   case BlendBox.ItemIndex of
     0: ABlendRegEx := BlendRegEx;
     1: ABlendRegEx := SoftMaskedEx;
@@ -226,6 +228,10 @@ begin
          8: ColorAlgebraReg := ColorDifference;
          9: ColorAlgebraReg := ColorAverage;
          10: ColorAlgebraReg := ColorExclusion;
+         11: ColorAlgebraReg := ColorScreen;
+         12: ColorAlgebraReg := ColorScreen;
+         13: ColorAlgebraReg := ColorDodge;
+         14: ColorAlgebraReg := ColorBurn;
        end;
     end;
  end;
@@ -235,7 +241,7 @@ begin
     TexBImg.Bitmap.BoundsRect, TexAImg.Bitmap, TexAImg.Bitmap.BoundsRect,
     ABlendRegEx, MasterAlphaBar.Position);
 
-  //This is needed because we may use MMX in the custom pixelcombiners
+  // This is needed because we may use MMX in the custom pixelcombiners
   EMMS;
 
   // Needed under Mac OS X

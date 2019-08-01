@@ -37,7 +37,7 @@ interface
 {$I GR32.inc}
 
 uses
-  GR32, GR32_Polygons, GR32_OrdinalMaps;
+  GR32, GR32_Gamma, GR32_Polygons, GR32_OrdinalMaps;
 
 type
   PIntSpan = ^TIntSpan;
@@ -221,7 +221,7 @@ begin
       if V > $10000 then V := $10000;
       V := V * M shr 24;
 {$IFDEF USEGR32GAMMA}
-      V := GAMMA_TABLE[V];
+      V := GAMMA_ENCODING_TABLE[V];
 {$ENDIF}
       C.A := V;
     end;
@@ -249,7 +249,7 @@ begin
       if V >= $10000 then V := V xor $1ffff;
       V := V * M shr 24;
 {$IFDEF USEGR32GAMMA}
-      V := GAMMA_TABLE[V];
+      V := GAMMA_ENCODING_TABLE[V];
 {$ENDIF}
       C.A := V;
     end;
@@ -297,6 +297,7 @@ begin
 
     // 3. Blend colors
     BlendLine(@FG[P.Min], @Dst[P.Min], N);
+    EMMS;
 
     // 4. Clear opacity map
     FillLongWord(Src[P.Min], N, 0);
@@ -310,12 +311,17 @@ begin
 end;
 {$IFDEF UseStackAlloc}{$W-}{$ENDIF}
 
+{$ifndef COMPILERXE2_UP}
+type
+  TRoundingMode = Math.TFPURoundingMode;
+{$endif COMPILERXE2_UP}
+
 procedure TPolygonRenderer32VPR2.PolyPolygonFS(
   const Points: TArrayOfArrayOfFloatPoint; const ClipRect: TFloatRect);
 var
   APoints: TArrayOfFloatPoint;
   I, J, H: Integer;
-  SavedRoundMode: TFPURoundingMode;
+  SavedRoundMode: TRoundingMode;
   R: TFloatRect;
 begin
   FYSpan := STARTSPAN;
@@ -469,7 +475,7 @@ begin
       if V > $ffff then V := $ffff;
       V := V * M shr 24;
 {$IFDEF USEGR32GAMMA}
-      V := GAMMA_TABLE[V];
+      V := GAMMA_ENCODING_TABLE[V];
 {$ENDIF}
       C.A := V;
     end;
@@ -494,7 +500,7 @@ begin
       if V >= $10000 then V := V xor $1ffff;
       V := V * M shr 24;
 {$IFDEF USEGR32GAMMA}
-      V := GAMMA_TABLE[V];
+      V := GAMMA_ENCODING_TABLE[V];
 {$ENDIF}
       C.A := V;
     end;
@@ -544,6 +550,7 @@ begin
 
     // 3. Blend colors
     BlendLine(@FG[P.Min], @Dst[P.Min], N);
+    EMMS;
 
     // 4. Clear opacity map
     FillLongWord(Src[P.Min], N, 0);
@@ -562,7 +569,6 @@ procedure TPolygonRenderer32VPR2X.PolyPolygonFS(
 var
   APoints: TArrayOfFloatPoint;
   I, J, H: Integer;
-  SavedRoundMode: TFPURoundingMode;
   R: TFloatRect;
 begin
   FYSpan := STARTSPAN;

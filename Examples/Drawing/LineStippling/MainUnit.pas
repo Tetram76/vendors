@@ -63,7 +63,7 @@ implementation
 {$ENDIF}
 
 uses
-  GR32_Math;
+  GR32_Gamma, GR32_Math;
 
 { TFormLineStippling }
 
@@ -114,8 +114,5 @@ begin
     Theta := Theta + 0.2;
   end;
 end;
-
-initialization
-  SetGamma(0.6);
 
 end.
