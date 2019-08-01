@@ -185,7 +185,7 @@ type
     function IsFormatStored: Boolean;
     procedure SetFocused(Value: Boolean);
 
-    function GetAsInteger: Longint;
+    function GetAsInteger: Int64;
     function GetButtonKind: TSpinButtonKind;
     function GetButtonWidth: Integer;
     function GetMinHeight: Integer;
@@ -197,7 +197,7 @@ type
     procedure ResizeButton;
     procedure SetAlignment(Value: TAlignment);
     procedure SetArrowKeys(Value: Boolean);
-    procedure SetAsInteger(NewValue: Longint);
+    procedure SetAsInteger(const NewValue: Int64);
     procedure SetButtonKind(Value: TSpinButtonKind);
     procedure SetDecimal(NewValue: Byte);
     procedure SetEditRect;
@@ -208,6 +208,7 @@ type
     procedure CMCtl3DChanged(var Msg: TMessage); message CM_CTL3DCHANGED;
     procedure WMUpDownClick(var Msg: TMessage); message WM_UPDOWNCLICK;
     procedure SetItems(const AValue: TStrings);
+    function GetDefaultButtonWidth: Integer;
   protected
     FButtonKind: TSpinButtonKind;
     procedure WMPaste(var Msg: TMessage); message WM_PASTE;
@@ -247,7 +248,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
 
-    property AsInteger: Longint read GetAsInteger write SetAsInteger default 0;
+    property AsInteger: Int64 read GetAsInteger write SetAsInteger default 0;
     property Text;
     property Alignment: TAlignment read FAlignment write SetAlignment default taLeftJustify;
     property ArrowKeys: Boolean read FArrowKeys write SetArrowKeys default True;
@@ -376,9 +377,11 @@ type
     Position: Integer;
     FHour24: Boolean;
     FShowSeconds: Boolean;
+    FShowMilliseconds: Boolean;
     FTime: TDateTime;
     FDataConnector: TJvCustomTimeEditDataConnector;
     procedure SetShowSeconds(Value: Boolean);
+    procedure SetShowMilliseconds(Value: Boolean);
     procedure SetHour24(Value: Boolean);
     procedure SetDataConnector(const Value: TJvCustomTimeEditDataConnector);
   protected
@@ -403,6 +406,7 @@ type
 
     property ButtonKind default bkDiagonal;
     property ShowSeconds: Boolean read FShowSeconds write SetShowSeconds default False;
+    property ShowMilliseconds: Boolean read FShowMilliseconds write SetShowMilliseconds default False;
     property Hour24: Boolean read FHour24 write SetHour24 default True;
     property DataConnector: TJvCustomTimeEditDataConnector read FDataConnector write SetDataConnector;
   public
@@ -419,6 +423,7 @@ type
   published
     property ButtonKind default bkDiagonal;
     property ShowSeconds default False;
+    property ShowMilliseconds default False;
     property Hour24 default True;
     property DataConnector;
     property ShowButton;
@@ -513,9 +518,13 @@ const
   sSpinUpBtnPole = 'JvSpinUPPOLE';
   sSpinDownBtnPole = 'JvSpinDOWNPOLE';
 
-  sTimeFormats: array [{Hour24}Boolean, {ShowSeconds}Boolean] of string = (
-    ('HH:mm AM/PM', 'HH:mm:ss AM/PM'),
-    ('HH:mm', 'HH:mm:ss')
+  sTimeFormats: array [{Hour24}Boolean, {ShowSeconds}Boolean, {ShowMilliseconds}Boolean] of string = (
+    (('HH:mm AM/PM', ''), {FFF FFT}
+     ('HH:mm:ss AM/PM', 'HH:mm:ss.zzz AM/PM')  {FTF FTT}
+    ),
+    (('HH:mm', ''), {TFF TFT}
+     ('HH:mm:ss', 'HH:mm:ss.zzz') {TTF TTT}
+    )
   );
 
 type
@@ -527,6 +536,7 @@ type
     procedure ScrollMessage(var Msg: TWMVScroll);
     procedure WMHScroll(var Msg: TWMHScroll); message CN_HSCROLL;
     procedure WMVScroll(var Msg: TWMVScroll); message CN_VSCROLL;
+    function GetDefaultButtonWidth: Integer;
   public
     procedure Resize; override;
   public
@@ -635,11 +645,27 @@ begin
   Result := GSpinButtonBitmapsManager;
 end;
 
-function DefBtnWidth: Integer;
+function DefBtnWidth(ppi: Integer): Integer;
+var
+  MaxWidth : Integer;
 begin
   Result := GetSystemMetrics(SM_CXVSCROLL);
-  if Result > 15 then
-    Result := 15;
+
+  if ppi > 0 then
+  begin
+    // prevent things going completely wrong if strange data had been returned
+    // 480 = 500%, which is the maximum value Windows 10 alows one to enter
+    if ppi > 480 then
+      ppi := 480;
+
+    MaxWidth := round(15 * ppi/96);
+  end
+  else
+    // 15 was the original fixed value
+    MaxWidth := 15;
+
+  if Result > MaxWidth then
+    Result := MaxWidth;
 end;
 
 function RemoveThousands(const AValue: string): string;
@@ -823,6 +849,15 @@ begin
   Result := ',0.##';
 end;
 
+function TJvCustomSpinEdit.GetDefaultButtonWidth: Integer;
+begin
+  Result := DefBtnWidth(Screen.
+    {$IFDEF RTL300_UP}
+    MonitorFromRect(TRect.Create(Left, Top, Left + Width, Top + Height)).
+    {$ENDIF RTL300_UP}
+    PixelsPerInch);
+end;
+
 procedure TJvCustomSpinEdit.BoundsChanged;
 var
   MinHeight: Integer;
@@ -967,7 +1002,7 @@ begin
   SetEditRect;
 end;
 
-function TJvCustomSpinEdit.GetAsInteger: Longint;
+function TJvCustomSpinEdit.GetAsInteger: Int64;
 begin
   Result := Trunc(GetValue);
 end;
@@ -987,7 +1022,7 @@ begin
     if FButton <> nil then
       Result := FButton.Width
     else
-      Result := DefBtnWidth;
+      Result := GetDefaultButtonWidth;
   end
   else
     Result := 0;
@@ -1157,7 +1192,7 @@ begin
       with TJvUpDown(FUpDown) do
       begin
         Visible := True;
-        SetBounds(0, 1, DefBtnWidth, Self.Height);
+        SetBounds(0, 1, GetDefaultButtonWidth, Self.Height);
         if BiDiMode = bdRightToLeft then
           Align := alLeft
         else
@@ -1172,7 +1207,7 @@ begin
       FBtnWindow.Visible := True;
       FBtnWindow.Parent := Self;
       if FButtonKind <> bkClassic then
-        FBtnWindow.SetBounds(0, 0, DefBtnWidth, Height)
+        FBtnWindow.SetBounds(0, 0, GetDefaultButtonWidth, Height)
       else
         FBtnWindow.SetBounds(0, 0, Height, Height);
       FButton := TJvSpinButton.Create(Self);
@@ -1193,7 +1228,7 @@ var
 begin
   if FUpDown <> nil then
   begin
-    FUpDown.Width := DefBtnWidth;
+    FUpDown.Width := GetDefaultButtonWidth;
     if BiDiMode = bdRightToLeft then
       FUpDown.Align := alLeft
     else
@@ -1204,12 +1239,12 @@ begin
   begin { bkDiagonal }
     if Ctl3D and (BorderStyle = bsSingle) then
       if FButtonKind = bkClassic then
-        R := Bounds(Width - DefBtnWidth - 4, -1, DefBtnWidth, Height - 3)
+        R := Bounds(Width - GetDefaultButtonWidth - 4, -1, GetDefaultButtonWidth, Height - 3)
       else
         R := Bounds(Width - Height - 1, -1, Height - 3, Height - 3)
     else
       if FButtonKind = bkClassic then
-      R := Bounds(Width - DefBtnWidth, 0, DefBtnWidth, Height)
+      R := Bounds(Width - GetDefaultButtonWidth, 0, GetDefaultButtonWidth, Height)
     else
       R := Bounds(Width - Height, 0, Height, Height);
     if BiDiMode = bdRightToLeft then
@@ -1245,7 +1280,7 @@ begin
   ResizeButton;
 end;
 
-procedure TJvCustomSpinEdit.SetAsInteger(NewValue: Longint);
+procedure TJvCustomSpinEdit.SetAsInteger(const NewValue: Int64);
 begin
   SetValue(NewValue);
 end;
@@ -1344,7 +1379,10 @@ procedure TJvCustomSpinEdit.SetItems(const AValue: TStrings);
 begin
   FItems.Assign(AValue);
   Value := 0;
-  Text := FItems[0];
+  if FItems.Count = 0 then
+    Text := ''
+  else
+    Text := FItems[0];
 end;
 
 procedure TJvCustomSpinEdit.SetMaxValue(NewValue: Extended);
@@ -1819,7 +1857,7 @@ begin
             Result := FMinValue;
         end;
       vtHex:
-        Result := StrToIntDef('$' + Text, Round(FMinValue));
+        Result := StrToInt64Def('$' + Text, Round(FMinValue));
       vtString:
         begin
           Result := FItems.IndexOf(Text);
@@ -1827,7 +1865,7 @@ begin
             Result := 0;
         end
     else {vtInteger}
-      Result := StrToIntDef(RemoveThousands(Text), Round(FMinValue));
+      Result := StrToInt64Def(RemoveThousands(Text), Round(FMinValue));
     end;
   except
     if ValueType = vtFloat then
@@ -1903,10 +1941,19 @@ begin
   inherited Destroy;
 end;
 
+function TJvUpDown.GetDefaultButtonWidth: Integer;
+begin
+  Result := DefBtnWidth(Screen.
+    {$IFDEF RTL300_UP}
+    MonitorFromRect(TRect.Create(Left, Top, Left + Width, Top + Height)).
+    {$ENDIF RTL300_UP}
+    PixelsPerInch);
+end;
+
 procedure TJvUpDown.Resize;
 begin
-  if Width <> DefBtnWidth then
-    Width := DefBtnWidth
+  if Width <> GetDefaultButtonWidth then
+    Width := GetDefaultButtonWidth
   else
     inherited Resize;
 end;
@@ -2722,7 +2769,7 @@ begin
   if FTime <> Value then
   begin
     FTime := Value;
-    Text := FormatDateTime(sTimeFormats[Hour24, ShowSeconds], FTime);
+    Text := FormatDateTime(sTimeFormats[Hour24, ShowSeconds, ShowMilliseconds], FTime);
   end;
 end;
 
@@ -2738,7 +2785,7 @@ begin
   if Value <> FHour24 then
   begin
     FHour24 := Value;
-    Text := FormatDateTime(sTimeFormats[Hour24, ShowSeconds], Time);
+    Text := FormatDateTime(sTimeFormats[Hour24, ShowSeconds, ShowMilliseconds], Time);
   end;
 end;
 
@@ -2746,8 +2793,21 @@ procedure TJvCustomTimeEdit.SetShowSeconds(Value: Boolean);
 begin
   if Value <> FShowSeconds then
   begin
+    if not Value then
+      FShowMilliseconds := False;
     FShowSeconds := Value;
-    Text := FormatDateTime(sTimeFormats[Hour24, ShowSeconds], Time);
+    Text := FormatDateTime(sTimeFormats[Hour24, ShowSeconds, ShowMilliseconds], Time);
+  end;
+end;
+
+procedure TJvCustomTimeEdit.SetShowMilliseconds(Value: Boolean);
+begin
+  if Value <> FShowMilliseconds then
+  begin
+    if Value then
+      FShowSeconds := True;
+    FShowMilliseconds := Value;
+    Text := FormatDateTime(sTimeFormats[Hour24, ShowSeconds, ShowMilliseconds], Time);
   end;
 end;
 
@@ -2769,7 +2829,7 @@ procedure TJvCustomTimeEdit.UpdateTimeDigits(Increment: Boolean);
   end;
 
 var
-  Offset, AMPMOffset: Integer;
+  Offset, AMPMOffset, MSOffset: Integer;
   NewValue: string;
 begin
   if ReadOnly then
@@ -2782,9 +2842,15 @@ begin
 
   NewValue := Text;
 
-  AMPMOffset := 10;
+  MSOffset := 10;
+  AMPMOffset := 14;
   if not FShowSeconds then
+  begin
     AMPMOffset := 7;
+    MSOffset := 7;
+  end
+  else if not FShowMilliseconds then
+    AMPMOffset := 10;
 
   Position := SelStart;
   // Hours
@@ -2871,9 +2937,9 @@ begin
     end;
   end
 
-  // Minutes
+  // Minutes/Seconds
   else
-  if (SelStart >= 3) and (SelStart <= AMPMOffset - 2) then
+  if (SelStart >= 3) and (SelStart <= MSOffset - 2) then
   begin
     Offset := 7;
     if (SelStart <= 5) then
@@ -2910,6 +2976,62 @@ begin
       end
       else
         DecNumberChar(NewValue, Offset + 1);
+    end;
+  end
+
+  // Milliseconds
+  else
+  if (SelStart >= 9) and (SelStart <= AMPMOffset - 2) then
+  begin
+    Offset := 10;
+
+    if Increment then
+    begin
+      if (NewValue[Offset] = '9') and (NewValue[Offset + 1] = '9') and (NewValue[Offset + 2] = '9') then
+      begin
+        SetNumberChar(NewValue, Offset, '0');
+        SetNumberChar(NewValue, Offset + 1, '0');
+        SetNumberChar(NewValue, Offset + 2, '0');
+      end
+      else
+      if (NewValue[Offset + 1] = '9') and (NewValue[Offset + 2] = '9') then
+      begin
+        IncNumberChar(NewValue, Offset);
+        SetNumberChar(NewValue, Offset + 1, '0');
+        SetNumberChar(NewValue, Offset + 2, '0');
+      end
+      else
+      if NewValue[Offset + 2] = '9' then
+      begin
+        IncNumberChar(NewValue, Offset + 1);
+        SetNumberChar(NewValue, Offset + 2, '0');
+      end
+      else
+        IncNumberChar(NewValue, Offset + 2);
+    end
+    else // decrement
+    begin
+      if (NewValue[Offset] = '0') and (NewValue[Offset + 1] = '0') and (NewValue[Offset + 2] = '0') then
+      begin
+        SetNumberChar(NewValue, Offset, '9');
+        SetNumberChar(NewValue, Offset + 1, '9');
+        SetNumberChar(NewValue, Offset + 2, '9');
+      end
+      else
+      if (NewValue[Offset + 1] = '0') and (NewValue[Offset + 2] = '0') then
+      begin
+        DecNumberChar(NewValue, Offset);
+        SetNumberChar(NewValue, Offset + 1, '9');
+        SetNumberChar(NewValue, Offset + 2, '9');
+      end
+      else
+      if NewValue[Offset + 2] = '0' then
+      begin
+        DecNumberChar(NewValue, Offset + 1);
+        SetNumberChar(NewValue, Offset + 2, '9');
+      end
+      else
+        DecNumberChar(NewValue, Offset + 2);
     end;
   end
 
@@ -3008,7 +3130,11 @@ var
 begin
   MaxLen := 5; // '00:00'
   if ShowSeconds then
+  begin
     Inc(MaxLen, 3); // ':00'
+    if ShowMilliseconds then
+      Inc(MaxLen,4); // '.000';
+  end;
   if not Hour24 then
     Inc(MaxLen, 3); // ' AM'
 
@@ -3025,7 +3151,12 @@ begin
   if SelStart >= 5 then
   begin
     TimePos := SelStart;
-    if not FShowSeconds then
+    if FShowSeconds then
+    begin
+      if (SelStart>=8) and not FShowMilliseconds then
+        Inc(TimePos,4);
+    end
+    else
       Inc(TimePos, 3);
     if SelStart < MaxLen then
     begin
@@ -3036,11 +3167,18 @@ begin
              Key := ':';
         6: if not CharInSet(Key, ['0'..'5']) then Key := #0;
         7: if not CharInSet(Key, ['0'..'9']) then Key := #0;
-        8: Key := ' ';
-        9: if (Key = 'a') or (Key = 'A') then Key := 'A'
+        8: if CharInSet(Key, ['0'..'9']) then
+             SelStart := SelStart + 1 // allow the user to skip the '.'
+           else
+             Key := '.';
+        9: if not CharInSet(Key, ['0'..'9']) then Key := #0;
+       10: if not CharInSet(Key, ['0'..'9']) then Key := #0;
+       11: if not CharInSet(Key, ['0'..'9']) then Key := #0;
+       12: Key := ' ';
+       13: if (Key = 'a') or (Key = 'A') then Key := 'A'
            else if (Key = 'p') or (Key = 'P') then Key := 'P'
            else Key := #0;
-       10: if (Key = 'm') or (Key = 'M') then Key := 'M'
+       14: if (Key = 'm') or (Key = 'M') then Key := 'M'
            else Key := #0;
       end;
     end

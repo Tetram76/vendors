@@ -96,6 +96,9 @@ uses
   JclUnitVersioning,
   {$ENDIF UNITVERSIONING}
   SysUtils, Classes, Graphics,
+  {$IFDEF HAS_UNIT_SYSTEM_UITYPES}
+  System.UITypes,
+  {$ENDIF}
   JvEditor, JvEditorCommon, JvHLParser;
 
 type
@@ -364,6 +367,7 @@ const
     ' external overload platform deprecated implements export contains' +
     ' requires resourcestring message dispid assembler asm abstract absolute' +
     ' dispinterface file threadvar library' +
+    ' array exports label asm packed in' +
     // TurboPascal
     ' interrupt inline near far' +
     // Delphi 8
@@ -915,7 +919,7 @@ begin
   N := Min(Max_X, Length(S));
   for I := 2 to N do
     Move(LineAttrs[1], LineAttrs[I], SizeOf(LineAttrs[1]));
-  if Length(S) < Max_X then
+  if N + 1 <= Max_X then
   begin
     LineAttrs[N + 1].FC := Font.Color;
     LineAttrs[N + 1].Style := Font.Style;

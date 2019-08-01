@@ -418,6 +418,9 @@ type
     procedure CMHintShow(var Msg: TMessage); message CM_HINTSHOW;
     procedure WMEraseBkgnd(var Message: TWMEraseBkgnd); message WM_ERASEBKGND;
     procedure WMNCPaint(var Message: TWMNCPaint); message WM_NCPAINT;
+    {$IFDEF RTL200_UP}
+    procedure CMDoublebufferedchanged(var Message: TMessage); message CM_DOUBLEBUFFEREDCHANGED;
+    {$ENDIF RTL200_UP}
     procedure ReadEscapeClear(Reader: TReader);
     procedure SetMouseOverButton(Value: Boolean);
   protected
@@ -1556,13 +1559,25 @@ end;
 
 function TJvLookupControl.Locate(const SearchField: TField;
   const AValue: string; Exact: Boolean): Boolean;
+var
+  IsDisplayField: Boolean;
+  CaseSensitive: Boolean;
 begin
   FLocate.IndexSwitch := FIndexSwitch;
   Result := False;
   try
     if not ValueIsEmpty(AValue) and (SearchField <> nil) then
     begin
-      Result := FLocate.Locate(SearchField.FieldName, AValue, Exact, not IgnoreCase, True, RightTrimmedLookup);
+      IsDisplayField := (SearchField = FDisplayField);
+      if IsDisplayField then
+        // respect lookup property
+        CaseSensitive := not IgnoreCase
+      else
+        // not display, so this is the key field, do a case-sensitive locate
+        CaseSensitive := True;
+
+      Result := FLocate.Locate(SearchField.FieldName, AValue, Exact, CaseSensitive, True, RightTrimmedLookup);
+
       if Result then
       begin
         if SearchField = FDisplayField then
@@ -3397,6 +3412,20 @@ begin
     inherited;
 end;
 
+{$IFDEF RTL200_UP}
+procedure TJvDBLookupCombo.CMDoublebufferedchanged(var Message: TMessage);
+begin
+  {$IFDEF JVCLThemesEnabled}
+  // We don't support double buffering. It causes painting issues in double buffered WM_PAINT vs.
+  // our WM_NCPAINT code that paints over the region that WM_PAINT also paints.
+  if DoubleBuffered then
+    DoubleBuffered := False // recurive call
+  else
+  {$ENDIF JVCLThemesEnabled}
+    inherited;
+end;
+{$ENDIF RTL200_UP}
+
 procedure TJvDBLookupCombo.Paint;
 const
   TransColor: array [Boolean] of TColor = (clBtnFace, clWhite);
@@ -3587,8 +3616,15 @@ begin
   {$IFDEF JVCLThemesEnabled}
   if StyleServices.Enabled then
   begin
-    if not (StyleServices.IsSystemStyle and JclCheckWinVersion(6, 0)) then // for Vista and newer the WM_NCPAINT handler paints the button
+    if DoubleBuffered or not (StyleServices.IsSystemStyle and JclCheckWinVersion(6, 0)) then // for Vista and newer the WM_NCPAINT handler paints the button
     begin
+      if not (StyleServices.IsSystemStyle and JclCheckWinVersion(6, 0)) then
+      begin
+        // If DoubleBuffered we need to paint it as client (WM_PRINTCLIENT) and as non-client (WM_NCPAINT)
+        InflateRect(R, 1, 1);
+        OffsetRect(R, 2, 0);
+      end;
+
       if not FListActive or not Enabled or ReadOnly then
         State := tcDropDownButtonDisabled
       else
