@@ -89,6 +89,8 @@ git pull
 #### From a GIT source
 
 ```shell
+# check if the remote exists
+git remote
 # if remote does not exist yet
 git remote add -t master XXX <url-or-path-to-XXX-repos>
 # and then
