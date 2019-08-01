@@ -1,9 +1,10 @@
-ICS - Internet Component Suite - V8 - Delphi 7 to RAD Studio 10.2 Tokyo
-=======================================================================
+ICS - Internet Component Suite - V8 - Delphi 7 to RAD Studio 10.3 Rio
+=====================================================================
 (Aka FPIETTE's Components)
 
 
-Revised: July 6, 2017
+Revised: April 25, 2019
+Release: V8.61
 http://www.overbyte.be/
 http://wiki.overbyte.be/
 http://www.overbyte.eu/
@@ -31,12 +32,12 @@ Table of content:
 
 Legal issues:
 -------------
-              Copyright (C) 1997-2017 by François PIETTE
+              Copyright (C) 1997-2019 by François PIETTE
               Rue de Grady 24, 4053 Embourg, Belgium
               <francois.piette@overbyte.be>
 
               SSL implementation includes code written by Arno Garrels,
-              Berlin, Germany, contact: <arno.garrels@gmx.de>
+              Berlin, Germany
 
               ICS is freeware.
 
@@ -103,8 +104,24 @@ components and sample programs. The history of changes in each source file list
 all developers having contributed (When no name is given, the change is by F. Piette).
 I can't list all contributors here but I want to specially thanks two specially active
 contributors:
-    - Arno Garrels <arno.garrels@gmx.de>
+    - Arno Garrels
     - Angus Robertson <angus@magsys.co.uk>
+
+
+Support:
+--------
+
+A new web support forum was created for ICS in February 2019:
+
+https://en.delphipraxis.net/forum/37-ics-internet-component-suite/
+
+Once registered, it is possible to follow a forum with email messages for new
+posts, or a daily summary like the old mailing list.
+
+The old twsocket mailing list ceased accepting new messages in late 2018, but
+20 years of archived messages are still available at:
+
+http://lists.elists.org/pipermail/twsocket/
 
 
 Latest versions:
@@ -121,9 +138,13 @@ releases of Delphi, latest it supported was XE3.
 
 ICS V8 is the current development release which is held in a public Version Control
 repository that is zipped each night for easy download.  The download page above
-also includes the OpenSSL binaries needed to support SSL. ICS V8 supports Delphi 64-bit
-and Mac OS-X projects.  Note that latest C++ Builder version supported is XE3 (lack of
-spare time, sorry).
+also includes the OpenSSL binaries needed to support SSL. ICS V8 supports Delphi
+64-bit and Mac OS-X projects.  Note that C++ Builder versions supported are up to
+XE3, 10.2 Tokyo and 10.3 Rio.  There are currently no C++ packages for XE4 to 10.1.
+but older or newer ones will often work.
+
+The latest version is V8.61  which will be reported by the CopyRight constant in
+OverbyteIcsWSocket.pas and the integer WSocketVersion as 860.
 
 ICS V9 is in early development and is planned to support Android and Linux Server. There
 are no current plans for ICS for iOS.
@@ -143,7 +164,7 @@ ICS V8 has been designed for Embarcadero Delphi 2009 and up, and C++ Builder
 2009 and up, but is fully compatible with Borland Delphi 7 and CodeGear 2006 and
 2007. Embarcadero RAD Studio includes Delphi and C++ Builder.
 
-http://www.embarcadero.com/
+https://www.embarcadero.com/
 
 With Delphi XE2 and later, VCL 64-bit Windows targets are supported for Delphi only.
 Currently FireMonkey is partly supported for Delphi only (there are still a few
@@ -237,7 +258,10 @@ Actual use of SSL in your applications also requires the OpenSSL files
 libcrypto-1_1.dll (or libcrypto-1_1-x64.dll) and libssl-1_1.dll (or libssl-1_1-x64).dll
 being available somewhere in the path.  The ICS distribution includes the latest Win32
 OpenSSL files in the .\OpenSSL-Win32 directory and the four main DLLs duplicated in
-.\Samples\delphi\sslinternet.
+.\Samples\delphi\sslinternet for Win32 and Win64 samples.
+
+Note OpenSSL 1.1.1 and later only support Windows Vista and later, and Windows Server
+2008 and later, not Windows XP.
 
 Other OpenSSL files, including older and Win64, may be downloaded from:
 
@@ -275,6 +299,8 @@ Delphi 10.1 Berlin : D101Install.groupproj // VCL only, no FireMonkey components
 Delphi 10.1 Berlin : D101InstallVclFmx.groupproj // Both VCL and FireMonkey components
 Delphi 10.2 Tokyo  : D102Install.groupproj // VCL only, no FireMonkey components
 Delphi 10.2 Tokyo  : D102InstallVclFmx.groupproj // Both VCL and FireMonkey components
+Delphi 10.3 Rio  : D103Install.groupproj // VCL only, no FireMonkey components
+Delphi 10.3 Rio  : D103InstallVclFmx.groupproj // Both VCL and FireMonkey components
 C++ Builder 2006 :  CB2006Install.bdsgroup
 C++ Builder 2007 :  CB2007Install.groupproj
 C++ Builder 2009 :  CB2009Install.groupproj
@@ -283,6 +309,8 @@ C++ Builder XE   :  CBXeInstall.groupproj
 C++ Builder XE2  :  CBXe2Install.groupproj // VCL only no FireMonkey components
 C++ Builder XE2  :  CBXe2InstallVclFmx.groupproj // Both VCL and FireMonkey components
 C++ Builder XE3  :  CBXe3InstallVclFmx.groupproj // Both VCL and FireMonkey components
+C++ Builder 10.2 Tokyo  : CB102InstallVclFmx.groupproj // Both VCL and FireMonkey components
+C++ Builder 10.3 Rio  : CB103InstallVclFmx.groupproj // Both VCL and FireMonkey components
 
 1 - Do a File/Open Project, navigate to the Install directory, select the correct
 file and open it. The project manager view should now display two package
@@ -367,6 +395,7 @@ Delphi XE8       :  OverbyteIcsDXe8Run.dproj, OverbyteIcsDXe8Design.dproj
 Delphi 10 Seattle  : OverbyteIcsD10SRun.dproj, OverbyteIcsD10SDesign.dproj
 Delphi 10.1 Berlin : OverbyteIcsD101Run.dproj, OverbyteIcsD101Design.dproj
 Delphi 10.2 Tokyo  : OverbyteIcsD102Run.dproj, OverbyteIcsD102Design.dproj
+Delphi 10.3 Rio  : OverbyteIcsD103Run.dproj, OverbyteIcsD103Design.dproj
 C++ Builder 2006 :  OverbyteIcsCB2006Run.bdsproj, OverbyteIcsCB2006Design.bdsproj
 C++ Builder 2007 :  OverbyteIcsCB2007Run.cbproj, OverbyteIcsCB2007Design.cbproj
 C++ Builder 2009 :  OverbyteIcsCB2009Run.cbproj, OverbyteIcsCB2009Design.cbproj
@@ -406,12 +435,19 @@ Delphi 10.1 Berlin FMX  :  IcsFmxD101Run.dproj, IcsFmxD101Design.dproj
 Delphi 10.2 Tokyo FMX/VCL: IcsCommonD102Run.dproj, IcsCommonD102Design.dproj
 Delphi 10.2 Tokyo VCL   :  IcsVclD102Run.dproj, IcsVclD102Design.dproj
 Delphi 10.2 Tokyo FMX   :  IcsFmxD102Run.dproj, IcsFmxD102Design.dproj
+Delphi 10.3 Rio FMX/VCL :  IcsCommonD103Run.dproj, IcsCommonD103Design.dproj
+Delphi 10.3 Rio VCL     :  IcsVclD103Run.dproj, IcsVclD103Design.dproj
+Delphi 10.3 Rio FMX     :  IcsFmxD103Run.dproj, IcsFmxD103Design.dproj
 C++ Builder XE2 FMX/VCL :  IcsCommonCBXe2Run.dproj, IcsCommonDXe2Design.dproj
 C++ Builder XE2 VCL     :  IcsVclCBXe2Run.dproj, IcsVclCBXe2Design.dproj
 C++ Builder XE2 FMX     :  IcsFmxCBXe2Run.dproj, IcsFmxCBXe2Design.dproj
 C++ Builder XE3 FMX/VCL :  IcsCommonCBXe3Run.dproj, IcsCommonDXe3Design.dproj
 C++ Builder XE3 VCL     :  IcsVclCBXe3Run.dproj, IcsVclCBXe3Design.dproj
 C++ Builder XE3 FMX     :  IcsFmxCBXe3Run.dproj, IcsFmxCBXe3Design.dproj
+C++ Builder 10.2 Tokyo VCL : IcsVclCB102Run.dproj, IcsVclCB102Design.dproj
+C++ Builder 10.2 Tokyo FMX : IcsFmxCB102Run.dproj, IcsFmxCB102Design.dproj
+C++ Builder 10.3 Rio VCL: IcsVclCB103Run.dproj, IcsVclCB103Design.dproj
+C++ Builder 10.3 Rio FMX: IcsFmxCB103Run.dproj, IcsFmxCB103Design.dproj
 
 
 1 - Open and Build the run-time package project (do not install!).
@@ -442,9 +478,9 @@ project.
 
 
 DELPHI XE2/WIN32, XE3/WIN32, XE4/WIN32, XE5/WIN32, XE6/WIN32, XE7/WIN32, XE8/WIN32,
-10 Seattle/WIN32, 10.1 Berlin/WIN32, 10.2 Tokyo/WIN32, XE2/WIN64, XE3/WIN64, XE4/WIN64,
-XE5/WIN64, XE6/WIN64, XE7/WIN64, XE8/WIN64, 10 Seattle/WIN64, 10.1 Berlin/WIN64,
-10.2 Tokyo/WIN64:
+10 Seattle/WIN32, 10.1 Berlin/WIN32, 10.2 Tokyo/WIN32, 10.3 Rio/WIN32, XE2/WIN64,
+XE3/WIN64, XE4/WIN64,XE5/WIN64, XE6/WIN64, XE7/WIN64, XE8/WIN64, 10 Seattle/WIN64,
+10.1 Berlin/WIN64, 10.2 Tokyo/WIN64, 10.3 Rio/WIN64:
 
 Similar to above, but the Library path is specified separately for 32-bit and 64-bit
 Windows Platforms. Beware Delphi seems to default to 64-bit platform, and needs to
@@ -501,13 +537,32 @@ each one after the other and compile them. For each project, do file/open
 and select the dpr file in the internet directory. Then Project/Build All.
 
 
-C++ BUILDER 2006, 2007, 2009, 2010, XE, XE2, XE3:
+C++ BUILDER 2006, 2007, 2009, 2010, XE, XE2, XE3, 10.2 Tokyo, 10.3 Rio:
 
 Follow the installation procedure described for Delphi 2006. Just change
 the project group and package name: use CB2006, CBXe, etc, see above.
 You can't have Delphi 2006 and CBuilder 2006 packages installed at the
 same time in the IDE. So when switching from one to the other, be sure to
 remove the one you don't need.
+
+The Embarcadero installation adds this to the system path:
+
+  C:\Users\Public\Documents\Embarcadero\Studio\20.0\Bpl
+
+This however does not allow Win32 packages to be installed, to do that you
+need to add this path to the system path (win10=Start, Edit the system
+environment variables, Environment variables, System variables, Path,
+Edit, New:)
+
+C:\Users\Public\Documents\Embarcadero\Studio\20.0\Bpl\Win32
+
+New projects that need to use ICS:
+
+include path:
+- add {THE DIR YOU EXTRACTED ICS To}\source\include\103\win32
+
+library path
+- add C:\Users\Public\Documents\Embarcadero\Studio\20.0\BPL\Win32
 
 Building the FireMonkey CBXE2InstallVclFmx C++ packages for OSX may trigger an
 ILINK32 error, this is a bug in C++ Builder reported as QC #103668 the Win32
@@ -562,20 +617,28 @@ properly add all of the available components in this collection:
 > OverbyteIcsDnsQuery          DNS lookup component - useful for getting MX records
 > OverbyteIcsDprUpdFix.pas     IDE plugin for Delphi 2009 and 2010 to update old projects
 > OverbyteIcsEmulVT.pas        ANSI terminal emulation in a control
+> OverbyteIcsFileCopy.pas      Indexing, copying and deleting of multiple file directories
+> OverbyteIcsFileCopyW.pas     Same as OverbyteIcsFileCopy but Unicode for Delphi 2007.
 > OverbyteIcsFingCli.pas       FINGER client protocol - Find information about user
 > OverbyteIcsFtpCli.pas        FTP client protocol - file transfer
+> OverbyteIcsFtpCliW.pas       Same as OverbyteIcsFtpCli but Unicode for Delphi 2007.
+> OverbyteIcsFtpMulti.pas      FTP client that indexes, uploads or downloads multiple files
+> OverbyteIcsFtpMultiW.pas     Same as OverbyteIcsFtpMulti but Unicode for Delphi 2007.
 > OverbyteIcsFtpSrv.pas        FTP server protocol - file transfer
 > OverbyteIcsFtpSrvT.pas       FTP server protocol - helpers
+> OverbyteIcsFtpSrvW.pas       Same as OverbyteIcsFtpSrvW but Unicode for Delphi 2007.
 > OverbyteIcsHttpAppServer.pas HTTP server protocol - used to build advanced web servers
+> OverbyteIcsHttpMulti.pas     HTTP client that downloads multiple files from a list or by parsing web links
+> OverbyteIcsHttpMultiW.pas    Same as OverbyteIcsHttpMulti but Unicode for Delphi 2007.
 > OverbyteIcsHttpProt.pas      HTTP client protocol - used by the web
 > OverbyteIcsHttpSrv.pas       HTTP server protocol - used to build web servers
+> OverbyteIcsIpStreamLog.pas   IP stream logging, using TCP Client or Server, UDP Client or Server, sends simple text
 > OverbyteIcsLogger.pas        A component to log information
+> OverbyteIcsMailQueue.pas     SMTP Mail Queue with extended retries, multiple SMTP servers or MX look up
 > OverbyteIcsMimeDec.pas       MIME component - decode file attach, use with POP3
 > OverbyteIcsMultiProgressBar.pas A segmented progress bar
-> OverbyteIcsMultipartFtpDownloader.pas
-        FTP client protocol - download one file using simultaneous connections to speedup download
-> OverbyteIcsMultipartHttpDownloader.pas
-        HTTP client protocol - download one file using simultaneous connections to speedup download
+> OverbyteIcsMultipartFtpDownloader.pas   FTP client protocol - download one file using simultaneous connections to speedup download
+> OverbyteIcsMultipartHttpDownloader.pas  HTTP client protocol - download one file using simultaneous connections to speedup download
 > OverbyteIcsNntpCli.pas       NNTP client protocol - send and receive newsgroups messages
 > OverbyteIcsPing.pas          ICMP echo protocol - ping a host
 > OverbyteIcsPop3Prot.pas      POP3 client protocol - get mail from mail server
@@ -585,6 +648,8 @@ properly add all of the available components in this collection:
 > OverbyteIcsSmtpSrv.pas       SMTP server protocol - receive mail from client
 > OverbyteIcsSnmpCli.pas       SNMP client protocol - network management
 > OverbyteIcsSnmpMsgs.pas      SNMP client protocol - message helper
+> OverbyteIcsSntp.pas          Time server and client supporting SNTP time protocol
+> OverbyteIcsSslHttpRest.pas   HTTPS REST functions, descends from THttpCli, includes OAuth2, Send SMS and DNS over HTTPS
 > OverbyteIcsSysLogClient.pas  Syslog Client Protocol - receive syslog messages
 > OverbyteIcsSysLogDefs.pas    Syslog Protocol - helpers
 > OverbyteIcsSysLogServer.pas  Syslog Server Protocol - send syslog messages
@@ -596,17 +661,21 @@ properly add all of the available components in this collection:
 > OverbyteIcsWSocketE.pas      Register procedure and property editor for TWSocket
 > OverbyteIcsWSocketS.pas      Winsock component for building servers
 > OverbyteIcsWSocketTS.pas     Winsock component for building multithreaded servers
+> OverbyteIcsWhoisCli.pas      Whois protocol client
 
 - The following list support and utilities units:
 > OverbyteIcsAsn1Utils.pas     ASN1 utilities (for TSnmpClient component)
 > OverbyteIcsAvlTrees.pas      Implements a fast cache-like data storage
+> OverbyteIcsBlacklist.pas     Blacklisting of malicious IP addresses, logging functions
+> OverbyteIcsCRC.pas           32 bit CRC computation
 > OverbyteIcsCharsetUtils.pas  MIME-charset functions
 > OverbyteIcsCookies.pas       Client Cookie Handling
-> OverbyteIcsCRC.pas           32 bit CRC computation
 > OverbyteIcsCsc.pas           character set routines
 > OverbyteIcsDES.pas           Implementation of the Data Encryption Standard (DES)
 > OverbyteIcsDigestAuth.pas    HTTP Digest Access Authentication
 > OverbyteIcsFormDataDecoder.pas Decode a MIME data block as generated by a HTML form
+> OverbyteIcsFtpSrvWT.pas      Same as OverbyteIcsFtpSrvWT but Unicode for Delphi 2007.
+> OverbyteIcsHtmlPars.pas      HTML web page parser
 > OverbyteIcsHttpCCodZLib.pas  Supports GZIP coding for HttpContCod
 > OverbyteIcsHttpContCod.pas   HTTP Content Coding support, uses extra units
 > OverbyteIcsIcmp.pas          ICMP protocol support, used by the PING component
@@ -614,16 +683,19 @@ properly add all of the available components in this collection:
 > OverbyteIcsLIBEAY.pas        Delphi encapsulation for libeay32.dll and libcrypto-1_1.dll (OpenSSL)
 > OverbyteIcsMD4.pas           Implementation of the MD4 Message-Digest Algorithm
 > OverbyteIcsMD5.pas           Implementation of the MD5 Message-Digest Algorithm
-> OverbyteIcsMimeUtil.pas      Support routines for MIME standard
 > OverbyteIcsMLang.pas         A few header translations from MS mlang.h
+> OverbyteIcsMimeUtil.pas      Support routines for MIME standard
 > OverbyteIcsNtlmMsgs.pas      Client NTLM authentification messages used within HTTP protocol
 > OverbyteIcsNtlmSsp.pas       Server NTLM authentification of user credentials using Windows SSPI
 > OverbyteIcsOneTimePw.pas     One Time Password support functions, used by FTP
 > OverbyteIcsSHA1.pas          Implementation of US Secure Hash Algorithm 1 (SHA1)
-> OverbyteIcsSocketUtils.pas   Cross platform socket utilities for ICS
 > OverbyteIcsSSLEAY.pas        Delphi encapsulation for ssleay32.dll and libssl-1_1.dll (OpenSSL)
+> OverbyteIcsSocketUtils.pas   Cross platform socket utilities for ICS
+> OverbyteIcsSslJose.pas       JOSE - Json Object Signing and Encryption
 > OverbyteIcsSslSessionCache.pas  A very fast external SSL-session-cache component
 > OverbyteIcsSslThrdLock.pas   Implementation of OpenSsl thread locking (Windows);
+> OverbyteIcsSslX509Certs.pas  Automatically download SSL X509 certificates from Let's Encrypt and CertCentre AG
+> OverbyteIcsSslX509Utils.pas  SSL key and X509 certification creation
 > OverbyteIcsSspi.pas          A few header translations from MS sspi.h and security.h
 > OverbyteIcsStreams.pas       Fast streams for ICS
 > OverbyteIcsThreadTimer.pas   A custom timer class using custom timer messages from one or more threads
@@ -638,8 +710,8 @@ properly add all of the available components in this collection:
 > OverbyteIcsWinsock.pas       Some Winsock initialisations
 > OverbyteIcsWndControl.pas    A class that encapsulates a windows message queue and a message map
 > OverbyteIcsZLibDll.pas       Zlib support, interface to external zlib.dll functions
-> OverbyteIcsZlibHigh.pas      Zlib support, high level interface for compression and decompression
 > OverbyteIcsZLibObj.pas       Zlib support, interface to zlib linked C OBJ functions
+> OverbyteIcsZlibHigh.pas      Zlib support, high level interface for compression and decompression
 
 
 FireMonkey Cross Platform Support:
@@ -656,27 +728,43 @@ project options. Instead in your existing ICS FireMonkey app. add either "Ics.Fm
 the unit scope names in project options or apply the following changes in the uses clause,
 rename:
 
-OverbyteIcsWndControl              -> Ics.Fmx.OverbyteIcsWndControl
-OverbyteIcsWSocket                 -> Ics.Fmx.OverbyteIcsWSocket
-OverbyteIcsFtpCli                  -> Ics.Fmx.OverbyteIcsFtpCli
-OverbyteIcsFtpSrv                  -> Ics.Fmx.OverbyteIcsFtpSrv
-OverbyteIcsHttpProt                -> Ics.Fmx.OverbyteIcsHttpProt
-OverbyteIcsWSocketS                -> Ics.Fmx.OverbyteIcsWSocketS
-OverbyteIcsSmtpProt                -> Ics.Fmx.OverbyteIcsSmtpProt.pas
-OverbyteIcsPop3Prot                -> Ics.Fmx.OverbyteIcsPop3Prot.pas
-OverbyteIcsNntpCli                 -> Ics.Fmx.OverbyteIcsNntpCli.pas
-OverbyteIcsPing                    -> Ics.Fmx.OverbyteIcsPing.pas
+OverbyteIcsBlacklist               -> Ics.Fmx.OverbyteIcsBlacklist.pas
+OverbyteIcsCharsetComboBox         -> Ics.Fmx.OverbyteIcsCharsetComboBox.pas
 OverbyteIcsDnsQuery                -> Ics.Fmx.OverbyteIcsDnsQuery.pas
+OverbyteIcsFileCopy                -> Ics.Fmx.OverbyteIcsFileCopy.pas
 OverbyteIcsFingCli                 -> Ics.Fmx.OverbyteIcsFingCli.pas
-OverbyteIcsSslSessionCache         -> Ics.Fmx.OverbyteIcsSslSessionCache.pas
-OverbyteIcsSslThrdLock             -> Ics.Fmx.OverbyteIcsSslThrdLock.pas
+OverbyteIcsFtpCli                  -> Ics.Fmx.OverbyteIcsFtpCli
+OverbyteIcsFtpMulti                -> Ics.Fmx.OverbyteIcsFtpMulti.pas
+OverbyteIcsFtpSrv                  -> Ics.Fmx.OverbyteIcsFtpSrv
+OverbyteIcsHttpAppServer           -> Ics.Fmx.OverbyteIcsHttpAppServer.pas
+OverbyteIcsHttpMulti               -> Ics.Fmx.OverbyteIcsHttpMulti.pas
+OverbyteIcsHttpProt                -> Ics.Fmx.OverbyteIcsHttpProt
 OverbyteIcsHttpSrv                 -> Ics.Fmx.OverbyteIcsHttpSrv.pas
-OverbyteIcsSocketUtils             -> Ics.Fmx.OverbyteIcsSocketUtils.pas
+OverbyteIcsIcmp                    -> Ics.Fmx.OverbyteIcsIcmp.pas
+OverbyteIcsIpStreamLog             -> Ics.Fmx.OverbyteIcsIpStreamLog.pas
+OverbyteIcsMailQueue               -> Ics.Fmx.OverbyteIcsMailQueue.pas
+OverbyteIcsMsSslUtils              -> Ics.Fmx.OverbyteIcsMsSslUtils.pas
 OverbyteIcsMultipartFtpDownloader  -> Ics.Fmx.OverbyteIcsMultipartFtpDownloader.pas
 OverbyteIcsMultipartHttpDownloader -> Ics.Fmx.OverbyteIcsMultipartHttpDownloader.pas
-OverbyteIcsHttpAppServer           -> Ics.Fmx.OverbyteIcsHttpAppServer.pas
+OverbyteIcsNntpCli                 -> Ics.Fmx.OverbyteIcsNntpCli.pas
+OverbyteIcsPing                    -> Ics.Fmx.OverbyteIcsPing.pas
+OverbyteIcsPop3Prot                -> Ics.Fmx.OverbyteIcsPop3Prot.pas
+OverbyteIcsProxy                   -> Ics.Fmx.OverbyteIcsProxy.pas
+OverbyteIcsSmtpProt                -> Ics.Fmx.OverbyteIcsSmtpProt.pas
+OverbyteIcsSntp                    -> Ics.Fmx.OverbyteIcsSntp.pas
+OverbyteIcsSocketUtils             -> Ics.Fmx.OverbyteIcsSocketUtils.pas
+OverbyteIcsSslHttpRest             -> Ics.Fmx.OverbyteIcsSslHttpRest.pas
+OverbyteIcsSslJose                 -> Ics.Fmx.OverbyteIcsSslJose.pas
+OverbyteIcsSslSessionCache         -> Ics.Fmx.OverbyteIcsSslSessionCache.pas
+OverbyteIcsSslThrdLock             -> Ics.Fmx.OverbyteIcsSslThrdLock.pas
+OverbyteIcsSslX509Certs            -> Ics.Fmx.OverbyteIcsSslX509Certs.pas
+OverbyteIcsSslX509Utils            -> Ics.Fmx.OverbyteIcsSslX509Utils.pas
 OverbyteIcsThreadTimer             -> Ics.Fmx.OverbyteIcsThreadTimer.pas
-OverbyteIcsCharsetComboBox         -> Ics.Fmx.OverbyteIcsCharsetComboBox.pas
+OverbyteIcsWSocket                 -> Ics.Fmx.OverbyteIcsWSocket
+OverbyteIcsWSocketS                -> Ics.Fmx.OverbyteIcsWSocketS
+OverbyteIcsWhoisCli                -> Ics.Fmx.OverbyteIcsWhoisCli.pas
+OverbyteIcsWndControl              -> Ics.Fmx.OverbyteIcsWndControl
+
 { Demo units }
 OverbyteIcsWebAppServerCounter     -> Ics.Fmx.OverbyteIcsWebAppServerCounter
 OverbyteIcsWebAppServerMailer      -> Ics.Fmx.OverbyteIcsWebAppServerMailer
@@ -721,6 +809,7 @@ Delphi Win32/Win64 FTP sample applications
 > OverbyteIcsFtpServ.dpr        General purpose FTP server, uses TSocketServer - ACTIVE!!
 > OverbyteIcsFtpThrd.dpr        Demo of multithreaded FTP client, see also FTPASY
 > OverbyteIcsFtpTst.dpr         Basic graphical FTP client - ACTIVE!!
+Note better samples under sslinternet with SSL enabled.
 
 Delphi Win32/Win64 SMTP, POP3, NNTP sample applications
 -------------------------------------------------------
@@ -735,6 +824,7 @@ Delphi Win32/Win64 SMTP, POP3, NNTP sample applications
 > OverbyteIcsMimeDemo.dpr       Example of EMail decoding (attached files are extracted) - ACTIVE!!
 > OverbyteIcsNewsReader.dpr     Example of TNntpCli component (Send/receive newsgroups) - ACTIVE!!
 > OverbyteIcsSmtpServer.dpr     Internet EMail server using SMTP protocol - ACTIVE!!
+Note better samples under sslinternet with SSL enabled.
 
 Delphi Win32/Win64 Miscellaneous applications
 ---------------------------------------------
@@ -762,11 +852,13 @@ Delphi Win32/Win64 DNS, Ping, SNMP, Syslog sample applications
 > OverbyteIcsDnsLook.dpr        Example of name resolution (IPv6 and IPv4)
 > OverbyteIcsDnsResolver.dpr    Batch async DNS lookup event driven using DnsQuery
 > OverbyteIcsFinger.dpr         Example of TFingerCli component
-> OverbyteIcsNsLookup.dpr       Demo for the DnsQuery component
-> OverbyteIcsPingTst.dpr        Demo for the ping component, includes trace route
+> OverbyteIcsNsLookup.dpr       Demo for the DnsQuery component - ACTIVE!!
+> OverbyteIcsPingTst.dpr        Demo for the ping component, includes trace route - ACTIVE!!
 > OverbyteIcsSnmpCliTst.dpr     Demo for SNMP (simple network management protocol) component
 > OverbyteIcsSysLogClientDemo.dpr Demo for SysLog client component
 > OverbyteIcsSysLogServerDemo.dpr Demo for SysLog server component
+> OverbyteIcsTimeTst.dpr       Test SNTP time protocol as client or server - ACTIVE!!
+> OverbyteIcsWhoisCliTst.dpr   Test Whois protocol, looks up servers automatically - ACTIVE!!
 
 Delphi FireMonkey cross-platform samples (Delphi XE2 and later)
 ---------------------------------------------------------------
@@ -793,7 +885,7 @@ All these samples may be built for Mac OS X (and Windows).
  Delphi Win32/Win64 Socket sample applications
  ---------------------------------------------
  .\Samples\delphi\SocketDemos\SocketDemos.bpg - Project group
-> OverbyteIcsBinCliDemo.dpr       Client program to receive binary and delimited text data. Works with BinTcpSrv demo.
+> OverbyteIcsBinCliDemo.dpr       Client program to receive binary and delimited text data. Works with OverbyteIcsTcpSrv demo.
 > OverbyteIcsCliDemo.dpr          Example of client for SRVDEMO, IPV4 only  - ACTIVE!!
 > OverbyteIcsClient5.dpr          Basic client GUI applications
 > OverbyteIcsClient7.dpr          Simple client application demonstrating TWSocket
@@ -821,11 +913,18 @@ All these samples may be built for Mac OS X (and Windows).
 > OverbyteIcsTnSrv.dpr            Basic TCP server with client forms, event-driven
 > OverbyteIcsUdpLstn.dpr          UDP listen demo
 > OverbyteIcsUdpSend.dpr          UDP send demo
+Note better samples under sslinternet with SSL enabled.
 
 Delphi Win32/Win64 SSL-enabled sample applications
 --------------------------------------------------
 .\Samples\delphi\sslinternet\SslDemos.bpg - Project group
+> OverbyteIcsHttpRestTst.dpr      ICS HTTPS REST and OAuth, Send SMS and DNS over HTTPS functions demo - ACTIVE!!.
 > OverbyteIcsHttpsTst.dpr         Example of TSslHttpCli component (GET) - ACTIVE!!
+> OverbyteIcsIpStmLogTst.dpr      Test IP stream logging, sending streams as client or server using SSL - ACTIVE!!
+> OverbyteIcsJoseTst.dpr          ICS SSL Json Object Signing (Jose) Demos - ACTIVE!!
+> OverbyteIcsMailQuTst.dpr        Simple mailing list tool using Mail Queue using SSL - ACTIVE!!
+> OverbyteIcsMsVerify.dpr         Verify and show an OpenSSL certificate or certificate chain using
+                                     class TMsCertChainEngine which uses MS crypto API - ACTIVE!!
 > OverbyteIcsPemTool.dpr          ICS Pem Certificate Tool - Create and import certificates in many formats  - ACTIVE!!
 > OverbyteIcsProxySslServer.dpr   ICS Proxy server  - ACTIVE!!
 > OverbyteIcsSimpleSslCli.dpr     Example of simple SSL client using TSslWSocket - ACTIVE!!
@@ -836,14 +935,17 @@ Delphi Win32/Win64 SSL-enabled sample applications
 > OverbyteIcsSslMailSnd.dpr       Example of EMail sending using SMTP and SSL - ACTIVE!!
 > OverbyteIcsSslMultiWebServ.dpr  Advanced multi host web server demo  - ACTIVE!!
 > OverbyteIcsSslNewsRdr.dpr       Example of TSslNntpCli component (Send/receive newsgroups) - ACTIVE!!
-> OverbyteIcsMsVerify.dpr         Verify and show an OpenSSL certificate or certificate chain using
-                                     class TMsCertChainEngine which uses MS crypto API - ACTIVE!!
-> OverbyteIcsSslSniSrv.dpr        Test of Server Name Indication (SNI) in server mode - ACTIVE!!
-> OverbyteIcsSslWebServ.dpr       Demo of HTTPS server, uses TSocketServer - ACTIVE!!
-> OverbyteIcsSslWebAppServer.dpr  Advanced HTTPS server demo, uses WebServ, adds sessions - ACTIVE!!
 > OverbyteIcsSslSmtpServer.dpr    Internet EMail server using SMTP protocol and SSL - ACTIVE!!
+> OverbyteIcsSslSniSrv.dpr        Test of Server Name Indication (SNI) in server mode - ACTIVE!!
+> OverbyteIcsSslWebAppServer.dpr  Advanced HTTPS server demo, uses WebServ, adds sessions - ACTIVE!!
+> OverbyteIcsSslWebServ.dpr       Demo of HTTPS server, uses TSocketServer - ACTIVE!!
+> OverbyteIcsX509CertsTst.dpr     Automatically download SSL X509 certificates from Let's Encrypt and CertCentre AG - ACTIVE!!
+> OverbyteIcsXferTst.dpr          File transfer testing, file copying, FTP up and download, HTTP download, with SSL - ACTIVE!!
 
-Delphi Win32/Win64 HTTP sample applications
+Note following sample is not in the project group since it only builds with Delphi 2007.
+> OverbyteIcsXferTstW.dpr         Same as OverbyteIcsXferTst but Unicode for Delphi 2007 - ACTIVE!!
+
+Delphi Win32/Win64 HTTP sample applications (the SSL versions are preferred!)
 -------------------------------------------
 .\Samples\delphi\WebDemos\WebDemos.bpg - Project group
 > OverbyteIcsConHttp.dpr          Basic console mode HTTP client
@@ -860,10 +962,8 @@ Delphi Win32/Win64 HTTP sample applications
 > OverbyteIcsIsapi.dll            Example of FTP client component within an ISAPI extension
 > OverbyteIcsWebAppServer.dpr     Advanced HTTP server demo, uses WebServ, adds sessions - ACTIVE!!
 > OverbyteIcsWebServ.dpr          Demo of HTTP server, uses TSocketServer - ACTIVE!!
+Note better samples under sslinternet with SSL enabled.
 
-Two samples are not in the project group since they need extra components installed
-> OverbyteIcsRestDemo.drp         Demo program showing how to use REST API from Google and Yahoo
-> OverbyteIcsRestJsonDemo.drp     Demo program showing how to use REST API from Google Search and JSON
 
 Sample Notes
 ------------
@@ -930,7 +1030,12 @@ SERVER.PEM :   A demo certificate and private key.
 ROOT.PEM :     A demo CA certificate.
                Passphrase is "password".
 TRUSTEDCABUNDLE.PEM :
-               A demo CA file in PEM format containing multiple
+               A demo CA file in PEM format containing about 52
+               well known root CA certificates to be specified in
+               property CA Path of the demo applications. Read
+               the comments included in this file.
+ROOTCABUNDLE.PEM :
+               A demo CA file in PEM format containing about 280
                well known root CA certificates to be specified in
                property CA Path of the demo applications. Read
                the comments included in this file.
@@ -1004,46 +1109,6 @@ your new PEM files.
 your application, with properties SslCertFile, SslPrivKeyFile and SslCAFile.
 The request certificate file has no further use.
 
-
-Support:
---------
-
-There is a mailing list to discuss F. Piette's components and applications.
-To subscribe surf to http://lists.elists.org/mailman/listinfo/twsocket.
-Do not use an aliased EMail address, use your real EMail address, the one
-you'll use to post messages. After asking for subscription, you'll receive a
-confirmation email you must reply to it or you will _not_ be added to the
-subscriber's list (this is to check for email path and also make sure
-someone doesn't subscribe you without your consent).
-
-Once you have been registered with the mailing list processor, you can
-send messages to twsocket@elists.org. Every subscriber will receive a copy of
-your message. I will respond, but anybody is welcome to respond to each
-other's messages. So every body can share his expertise. There are many other
-useful mailing lists at http://www.elists.org !
-
-Before asking a question, browse the message archive you can download from
-the support page on the web site (click the "support" button from main page)
-and from the mailing list web site http://lists.elists.org/mailman/listinfo/twsocket.
-Google is also archiving the list with some delay.
-
-If you found a bug, please make a short program that reproduces the problem
-attach it to a message addressed to me. If I can reproduce the problem, I
-can find a fix ! Do not send exe file but just source code and instructions.
-Always use the latest version (beta if any) before reporting any bug.
-
-You are also encouraged to use the support mailing list to ask for
-enhancements. You are welcome to post your own code.
-
-The support mailing list has sometimes a heavy traffic. If
-it is too much for you, you can select "digest" mode in which mailing list
-processor will mail you only one big message per day. To select digest mode
-goto http://lists.elists.org/mailman/listinfo/twsocket.
-
-You can also subscribe to another mailing list called twsocket-announce which
-will receive only very few messages when major bug fixes or updates are done.
-The subscription process is the same as for the other mailing list.
-See above procedure.
 
 
 Release notes

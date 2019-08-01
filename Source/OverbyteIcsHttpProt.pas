@@ -2,20 +2,19 @@
 
 Author:       François PIETTE
 Creation:     November 23, 1997
-Version:      8.50
+Version:      8.62
 Description:  THttpCli is an implementation for the HTTP protocol
               RFC 1945 (V1.0), and some of RFC 2068 (V1.1)
 Credit:       This component was based on a freeware from by Andreas
               Hoerstemeier and used with his permission.
               andy@hoerstemeier.de http://www.hoerstemeier.com/index.htm
 EMail:        francois.piette@overbyte.be         http://www.overbyte.be
-Support:      Use the mailing list twsocket@elists.org
-              Follow "support" link at http://www.overbyte.be for subscription.
-Legal issues: Copyright (C) 1997-2017 by François PIETTE
+Support:      https://en.delphipraxis.net/forum/37-ics-internet-component-suite/
+Legal issues: Copyright (C) 1997-2019 by François PIETTE
               Rue de Grady 24, 4053 Embourg, Belgium.
               <francois.piette@overbyte.be>
               SSL implementation includes code written by Arno Garrels,
-              Berlin, Germany, contact: <arno.garrels@gmx.de>
+              Berlin, Germany
 
               This software is provided 'as-is', without any express or
               implied warranty.  In no event will the author be held liable
@@ -513,6 +512,45 @@ Nov 04, 2016 V8.37 V8.10 POST relocation fix failed 302 because status had been 
                       some more friendly messages (without error numbers)
 May 18, 2017 V8.48 Fixed SslServerName for correct host target name with SSL proxies
 Sep 17, 2017 V8.50 Replaced four TBytes functions with versions in OverbyteIcsUtils
+Dec 7,  2017 V8.51 Fixed SOCKS4A/5 skip DNSLookup since hostname is passed to SOCKS server
+                      so it can resolve DNS instead, thanks to Colin Wall for fixing this.
+                   Socks authstate event now works
+                   Report sensible proxy and socks ReasonPhrase
+Feb 16, 2018 V8.52 Added ExtraHeaders property to simplify adding extra headers to
+                     a request (previously done using onBeforeHeaderSend event)
+May 21, 2018 V8.54 Added httpAuthBearer and httpAuthToken, and AuthBearerToken for OAuth1/2
+                   Connected now available as a property
+                   Added ResponseNoException property to suppress error exceptions for
+                     sync requests, ie most 400 and 500 status codes (eases debugging).
+Jun 18, 2018 V8.55 ReasonPhrase for abort may return SSL handshake error.
+                   Minor clean-up, more relocation debugging
+Sep 5, 2018  V8.57 Added OnSelectDns event to allow application to change DnsResult to
+                       one of the several offered, round robin or IPv4/IPv6
+Mar 15, 2019 V8.60 Added AddrResolvedStr read only property which is the IPv4/IPv6
+                      address to which the client is trying to connect.
+                   Added IP address and port to 404 Connect error.
+                   Added round robin DNS lookup if DNSLookup returns multiple
+                     IP addresses so they are used in turn after a failure
+                     when the component is called repeatedly.
+                   Only follow relocation for 3xx response codes, not 201 Created,
+                    but keep Location for 201 which is often response to a POST.
+Apr 09, 2019 V8.61 OAS : Improved NTLM authentication by adding Single Sign On with
+                     NTLM Session on Windows Domain to get credentials without needing
+                     them specified here.
+                   Added TriggerRequestDone2 to correct overriding RequestDone event.
+                   Added TriggerCommand, TriggerHeaderData, TriggerLocationChange
+                      and TransferSslHandshakeDone to allow overriding those events.
+                   Added more header response properties: RespDateDT,
+                     RespLastModDT, RespExpires, RespCacheControl.
+                   NoCache now sends Cache-Control: no-cache for HTTP/1.1
+Jun 25, 2019 V8.62 Added httpAuthJWT using AuthBearerToken for Json Web Token
+                      authentication.
+                   Added ProxyURL property which combines four proxy properties
+                     as a URL for simplicity, ie http://[user[:password]@]host:port
+                   Added AlpnProtocols property which is sent when an SSL connection
+                     starts and GetAlpnProtocol which returns which the server
+                     supports.     
+
 
 To convert the received HTML stream to a unicode string with the correct codepage,
 use this function in OverbyteIcsCharsetUtils, it's not used directly by this unit
@@ -594,7 +632,10 @@ uses
     OverbyteIcsWSocket,
 {$ENDIF FMX}
 {$IFDEF UseNTLMAuthentication}
+    OverbyteIcsMimeUtils,
     OverbyteIcsNtlmMsgs,
+    OverbyteIcsSspi,
+    OverbyteIcsNtlmSsp,
 {$ENDIF}
 {$IFDEF UseDigestAuthentication}
     OverbyteIcsDigestAuth,
@@ -609,8 +650,8 @@ uses
     OverbyteIcsTypes, OverbyteIcsUtils;
 
 const
-    HttpCliVersion       = 850;
-    CopyRight : String   = ' THttpCli (c) 1997-2017 F. Piette V8.50 ';
+    HttpCliVersion       = 862;
+    CopyRight : String   = ' THttpCli (c) 1997-2019 F. Piette V8.62 ';
     DefaultProxyPort     = '80';
     //HTTP_RCV_BUF_SIZE    = 8193;
     //HTTP_SND_BUF_SIZE    = 8193;
@@ -659,7 +700,9 @@ type
     THttpDigestState = (digestNone, digestMsg1, digestDone);
 {$ENDIF}
     THttpBasicState  = (basicNone, basicMsg1, basicDone);
-    THttpAuthType    = (httpAuthNone, httpAuthBasic, httpAuthNtlm, httpAuthDigest);
+    THttpAuthType    = (httpAuthNone, httpAuthBasic, httpAuthNtlm,
+                        httpAuthDigest, httpAuthBearer, httpAuthToken,   { V8.54 }
+                        httpAuthJWT);  { V8.62 }
     THttpBeforeAuthEvent   = procedure(Sender  : TObject;
                                  AuthType      : THttpAuthType;
                                  ProxyAuth     : Boolean;
@@ -688,6 +731,9 @@ type
     TLocationChangeExceeded = procedure (Sender              : TObject;
                                   const RelocationCount      : Integer;
                                   var   AllowMoreRelocations : Boolean) of object;  {  V1.90 }
+    TSelectDnsEvent = procedure(Sender : TObject;
+                                  DnsList     : TStrings;
+                                  var NewDns  : String) of object;      { V8.57 }
 
 
     THttpCli = class(TIcsWndControl)
@@ -697,7 +743,6 @@ type
         FMsg_WM_HTTP_LOGIN        : UINT;
         FCtrlSocket           : TWSocket;
         FSocketFamily         : TSocketFamily;
-        //FWindowHandle         : HWND;
         FState                : THttpState;
         FLocalAddr            : String;
         FLocalAddr6           : String; { V8.02 IPv6 address for local interface to use }
@@ -714,6 +759,7 @@ type
         FCurrPassword         : String;
         FProxyUsername        : String;
         FProxyPassword        : String;
+        FProxyURL             : String;     { V8.62 combines Proxy/PrexyPort/ProxyUserName/proxyPassword as URL }
         FProxyConnected       : Boolean;
         FLocation             : String;
         FCurrentHost          : String;
@@ -721,10 +767,8 @@ type
         FCurrentProtocol      : String;
         FConnected            : Boolean;
         FDnsResult            : String;
-//      FSendBuffer           : array [0..HTTP_SND_BUF_SIZE - 1] of char;
         FSendBuffer           : TBytes;  // FP 09/09/06
         FRequestType          : THttpRequest;
-//      FReceiveBuffer        : array [0..HTTP_RCV_BUF_SIZE - 1] of char;
         FReceiveBuffer        : TBytes;  // FP 09/09/06
         FReceiveLen           : Integer;
         FLastResponse         : String;
@@ -746,6 +790,7 @@ type
         FAcceptLanguage       : String;
         FModifiedSince        : TDateTime;      { Warning ! Use GMT date/Time }
         FNoCache              : Boolean;
+        FExtraHeaders         : TStrings;   { V8.52 }
         FStatusCode           : Integer;
         FReasonPhrase         : String;
         FResponseVer          : String;
@@ -778,7 +823,6 @@ type
         FReqStream            : TMemoryStream;
         FRequestDoneError     : Integer;
         FNext                 : procedure of object;
-//      FBodyData             : PChar;
         FBodyData             : Integer;  // Offset in FReceiveBuffer (FP 09/09/06)
         FBodyDataLen          : THttpBigInt;
         FOptions              : THttpCliOptions;
@@ -789,6 +833,7 @@ type
         FSocksPassword        : String;
         FSocksAuthentication  : TSocksAuthentication;
 {$IFDEF UseNTLMAuthentication}
+        FAuthNtlmSession      : TNtlmAuthSession;  // V8.61 OAS
         FNTLMMsg2Info         : TNTLM_Msg2_Info;
         FProxyNTLMMsg2Info    : TNTLM_Msg2_Info;
         FAuthNTLMState        : THttpNTLMState;
@@ -806,8 +851,6 @@ type
         FOnBeforeAuth         : THttpBeforeAuthEvent;
         FAuthBasicState       : THttpBasicState;
         FProxyAuthBasicState  : THttpBasicState;
-        //FServerAuth           : String;
-        //FProxyAuth            : String;
         FServerAuth           : THttpAuthType;
         FProxyAuth            : THttpAuthType;
 {$IF DEFINED(UseBandwidthControl) or DEFINED(BUILTIN_THROTTLE)}
@@ -851,8 +894,20 @@ type
         FOnSocksError         : TSocksErrorEvent;
         FOnSocketError        : TNotifyEvent;
         FOnBeforeHeaderSend   : TBeforeHeaderSendEvent;     { Wilfried 9 sep 02}
+        FOnSelectDns          : TSelectDnsEvent;            { V8.57 }
         FCloseReq             : Boolean;                    { SAE 01/06/04 }
-        FSocketErrs           : TSocketErrs;   { V8.37 }
+        FSocketErrs           : TSocketErrs;                { V8.37 }
+        FAuthBearerToken      : String;        { V8.54 }
+        FResponseNoException  : Boolean;       { V8.54 should error exceptions be skipped? }
+        FCurrDnsResult        : Integer;       { V8.60 round robin DNS results }
+        FTotDnsResult         : Integer;       { V8.60 round robin DNS results }
+        FLastAddrOK           : String;        { V8.60 round robin DNS results }
+        FRespDateDT           : TDateTime;     { V8.61 }
+        FRespLastModDT        : TDateTime;     { V8.61 }
+        FRespExpires          : TDateTime;     { V8.61 }
+        FRespAge              : Integer;       { V8.61 }
+        FRespCacheControl     : String;        { V8.61 }
+        FAlpnProtoList        : TStrings;      { V8.62 only used for SSL }
         FTimeout              : UINT;  { V7.04 }            { Sync Timeout Seconds }
         FWMLoginQueued        : Boolean;
         procedure AbortComponent; override; { V7.11 }
@@ -914,8 +969,6 @@ type
         procedure SocketSessionConnected(Sender : TObject; ErrCode : Word); virtual;
         procedure SocketDataSent(Sender : TObject; ErrCode : Word); virtual;
         procedure SocketDataAvailable(Sender: TObject; ErrCode: Word); virtual;
-  {      function  StartsWithText(Source : TBytes; Find : PAnsiChar) : Boolean; V8.50 moved to Utils }
-  {      function  ContainsText(Source : TBytes; Find : PAnsiChar) : Boolean; V8.50 moved to Utils }
         procedure LocationSessionClosed(Sender: TObject; ErrCode: Word); virtual;
         procedure DoRequestAsync(Rq : THttpRequest); virtual;
         procedure DoRequestSync(Rq : THttpRequest); virtual;
@@ -946,6 +999,13 @@ type
         procedure SetReady; virtual;
         procedure AdjustDocName; virtual;
         procedure SetRequestVer(const Ver : String);
+        procedure SetExtraHeaders(Value: TStrings);      { V8.52 }
+        function  GetAddrResolvedStr: String;            { V8.60 }
+        procedure SetSocketFamily(Value : TSocketFamily); { V8.60 }
+        procedure TriggerRequestDone2; virtual; { V8.61 so we can override it }
+        procedure TriggerCommand(var S: String); virtual;  { V8.61 }
+        procedure TriggerHeaderData; virtual;  { V8.61 }
+        procedure TriggerLocationChange; virtual;  { V8.61 }
         procedure WMHttpRequestDone(var msg: TMessage);
         procedure WMHttpSetReady(var msg: TMessage);
         procedure WMHttpLogin(var msg: TMessage);
@@ -958,6 +1018,10 @@ type
                                    ErrCode        : Word;
                                    PeerCert       : TX509Base;
                                    var Disconnect : Boolean);
+        procedure TransferSslHandshakeDone(Sender      : TObject;
+                                            ErrCode    : Word;
+                                            PeerCert   : TX509Base;
+                                        var Disconnect : Boolean); virtual; { V8.61 }
 {$ENDIF}
     public
         constructor Create(AOwner: TComponent); override;
@@ -986,6 +1050,7 @@ type
         property CtrlSocket           : TWSocket     read  FCtrlSocket;
         //property Handle               : HWND         read  FWindowHandle;
         property State                : THttpState   read  FState;
+        property Connected            : Boolean      read  FConnected;  { V8.54 }
         property LastResponse         : String       read  FLastResponse;
         property ContentLength        : THttpBigInt  read  FContentLength;
         property ContentType          : String       read  FContentType;
@@ -999,6 +1064,12 @@ type
         property StatusCode           : Integer      read  FStatusCode;
         property ReasonPhrase         : String       read  FReasonPhrase;
         property DnsResult            : String       read  FDnsResult;
+        property AddrResolvedStr      : String       read  GetAddrResolvedStr;    { V8.60 }
+        property RespDateDT           : TDateTime    read  FRespDateDT ;          { V8.61 }
+        property RespLastModDT        : TDateTime    read  FRespLastModDT ;       { V8.61 }
+        property RespExpires          : TDateTime    read  FRespExpires;          { V8.61 }
+        property RespAge              : Integer      read  FRespAge;              { V8.61 }
+        property RespCacheControl     : String       read  FRespCacheControl;     { V8.61 }
         property AuthorizationRequest : TStringList  read  FDoAuthor;
         property DocName              : String       read  FDocName;
         property Location             : String       read  FLocation
@@ -1058,12 +1129,18 @@ type
                                                      write FProxyUsername;
         property ProxyPassword   : String            read  FProxyPassword
                                                      write FProxyPassword;
+        property ProxyURL        : String            read  FProxyURL
+                                                     write FProxyURL;{ V8.62 }
         property NoCache         : Boolean           read  FNoCache
                                                      write FNoCache;
         property ModifiedSince   : TDateTime         read  FModifiedSince
                                                      write FModifiedSince;
         property Cookie          : String            read  FCookie
                                                      write FCookie;
+        property ExtraHeaders    : TStrings          read  FExtraHeaders
+                                                     write SetExtraHeaders;    { V8.52 }
+        property ResponseNoException : Boolean       read  FResponseNoException
+                                                     write FResponseNoException;    { V8.54 }
         property ContentTypePost : String            read  FContentPost
                                                      write FContentPost;
         property ContentRangeBegin: String           read  FContentRangeBegin  {JMR!! Added this line!!!}
@@ -1182,9 +1259,14 @@ type
                                                      write FOnBeforeAuth;
         property OnBgException;                                             { V7.11 }
         property SocketFamily        : TSocketFamily read  FSocketFamily
-                                                     write FSocketFamily;
-        property SocketErrs         : TSocketErrs    read  FSocketErrs
+                                                     write SetSocketFamily;  { V8.60 }
+        property SocketErrs          : TSocketErrs    read  FSocketErrs
                                                      write FSocketErrs;      { V8.37 }
+        property AuthBearerToken     : String        read  FAuthBearerToken
+                                                     write FAuthBearerToken; { V8.54 }
+        property OnSelectDns         : TSelectDnsEvent
+                                                     read  FOnSelectDns
+                                                     write FOnSelectDns;     { V8.57 }
     end;
 
 { You must define USE_SSL so that SSL code is included in the component.   }
@@ -1208,12 +1290,6 @@ Description:  A component adding SSL support to THttpCli.
 {$X+}                                 { Enable extended syntax              }
 {$H+}                                 { Use long strings                    }
 {$J+}                                 { Allow typed constant to be modified }
-{
-const
-     SslHttpCliVersion            = 100;
-     SslHttpCliDate               = 'Feb 15, 2003';
-     SslHttpCliCopyRight : String = ' TSslHttpCli (c) 2008 Francois Piette V1.00.0 ';
-}
 type
     TSslHttpCli = class(THttpCli)
     protected
@@ -1228,6 +1304,7 @@ type
         function  GetSslContext: TSslContext;
         procedure SetSslAcceptableHosts(Value : TStrings);
         function  GetSslAcceptableHosts: TStrings;
+        procedure SetAlpnProtocols(ProtoList: TStrings);               { V8.62 }
 
         procedure TransferSslVerifyPeer(Sender        : TObject;
                                         var Ok        : Integer;
@@ -1243,11 +1320,14 @@ type
                                             var Cert   : TX509Base); virtual;
     public
         procedure   SetAcceptableHostsList(const SemiColonSeparatedList : String);
+        function    GetAlpnProtocol: String;
     published
         property SslContext         : TSslContext         read  GetSslContext
                                                           write SetSslContext;
         property SslAcceptableHosts : TStrings            read  GetSslAcceptableHosts
                                                           write SetSslAcceptableHosts;
+        property AlpnProtocols      : TStrings            read  FAlpnProtoList
+                                                          write SetAlpnProtocols; { V8.62 }
         property OnSslVerifyPeer    : TSslVerifyPeerEvent read  FOnSslVerifyPeer
                                                           write FOnSslVerifyPeer;
         property OnSslCliGetSession : TSslCliGetSession
@@ -1356,6 +1436,7 @@ begin
     FAgent                         := 'Mozilla/4.0'; { V8.04 removed (compatible; ICS) which upset some servers  }
     FDoAuthor                      := TStringlist.Create;
     FRcvdHeader                    := TStringList.Create;
+    FExtraHeaders                  := TStringList.Create;      { V8.52 }
     FReqStream                     := TMemoryStream.Create;
     FState                         := httpReady;
     FLocalAddr                     := ICS_ANY_HOST_V4;
@@ -1375,6 +1456,7 @@ begin
     FCtrlSocket.OnDnsLookupDone    := SocketDNSLookupDone;
     FCtrlSocket.OnSocksError       := DoSocksError;
     FCtrlSocket.OnSocksConnected   := DoSocksConnected;
+    FCtrlSocket.OnSocksAuthState   := DoSocksAuthState;   { V8.51 }
    { V8.37 don't suppress socket exceptions unless we handle them }
     if Assigned (FOnSocketError) then
         FCtrlSocket.OnError        := SocketErrorTransfer;
@@ -1386,6 +1468,9 @@ begin
     FLocationChangeCurCount        := 0;  {  V1.90 }
     FTimeOut                       := 30;
     FSocketFamily                  := DefaultSocketFamily;   { V8.00 }
+    FLastAddrOK                    := '';     { V8.60 }
+    FCurrDnsResult                 := -1;     { V8.60 }
+    FAlpnProtoList                 := TStringList.Create;  { V8.62 }
 end;
 
 
@@ -1394,7 +1479,9 @@ destructor THttpCli.Destroy;
 begin
     FDoAuthor.Free;
     FreeAndNil(FCtrlSocket);
+    FAlpnProtoList.Free;     { V8.62 }
     FRcvdHeader.Free;
+    FExtraHeaders.Free;      { V8.52 }
     FReqStream.Free;
     SetLength(FReceiveBuffer, 0);   {AG 03/18/07}
     SetLength(FSendBuffer, 0);      {AG 03/18/07}
@@ -1404,7 +1491,9 @@ begin
 {$IFDEF UseContentCoding}
     FContentCodingHnd.Free;
 {$ENDIF}
-
+{$IFDEF USE_NTLM_AUTH}
+    FreeAndNil(FAuthNtlmSession);  // V8.61
+{$ENDIF}
     inherited Destroy;
 end;
 
@@ -1514,6 +1603,33 @@ end;
 procedure THttpCli.SetReady;
 begin
     PostMessage(Handle, FMsg_WM_HTTP_SET_READY, 0, 0);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure THttpCli.SetExtraHeaders(Value : TStrings);    { V8.52 }
+begin
+    FExtraHeaders.Assign(Value);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  THttpCli.GetAddrResolvedStr: String;            { V8.60 }
+begin
+    Result := '';
+   if Assigned(FCtrlSocket) then
+        Result := FCtrlSocket.AddrResolvedStr;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure THttpCli.SetSocketFamily(Value : TSocketFamily); { V8.60 }
+begin
+    if FSocketFamily <> Value then begin
+        FSocketFamily := Value;
+        FLastAddrOK  := '';   { ensure we don't use last IP address again }
+        FCurrDnsResult := -1;
+    end;
 end;
 
 
@@ -1834,14 +1950,14 @@ begin
     if (httpoNoNTLMAuth in FOptions) and
        (((FStatusCode = 401) and (FServerAuth = httpAuthNtlm)) or
        ((FStatusCode = 407) and (FProxyAuth = httpAuthNtlm))) then
-        Exit;
+          Exit
 
-    if (FStatusCode = 401) and (FDoAuthor.Count > 0) and
-       (FAuthBasicState = basicNone) and
+    else if (FStatusCode = 407)    and (FDoAuthor.Count > 0) and
+            (FProxyAuthBasicState = basicNone)
 {$IFDEF UseDigestAuthentication}
-       (FAuthDigestState = digestNone) and
+            and (FProxyAuthDigestState = digestNone)
 {$ENDIF}
-       (FCurrUserName <> '') and (FCurrPassword <> '') then begin
+            then begin  // V8.61  OAS : remove case where user and PW are empty because used for User credentials
         { We can handle authorization }
         TmpInt := FDoAuthor.Count - 1;
         while TmpInt >= 0  do begin
@@ -1851,10 +1967,11 @@ begin
                     FOnBeforeAuth(Self, httpAuthNtlm, FALSE,
                                   FDoAuthor.Strings[TmpInt], Result);
                 if Result then begin
+                    if (FProxyUsername = '') and (FProxyPassword = '')  and not Assigned(FAuthNtlmSession) then  // V8.61
+                        FAuthNtlmSession := TNtlmAuthSession.Create (cuOutbound) ;                               // Create session for proxy NTLM
                     StartAuthNTLM;
                     if FAuthNTLMState in [ntlmMsg1, ntlmMsg3] then
                         FlgClean := True;
-
                     Break;
                 end;
             end;
@@ -1980,7 +2097,7 @@ end;
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-procedure THttpCli.WMHttpRequestDone(var msg: TMessage);
+procedure THttpCli.TriggerRequestDone2;  { V8.61 so we can override it }
 begin
 {$IFNDEF NO_DEBUG_LOG}
     if CheckLogOptions(loProtSpecInfo) then  { V1.91 } { replaces $IFDEF DEBUG_OUTPUT  }
@@ -1988,6 +2105,37 @@ begin
 {$ENDIF}
     if Assigned(FOnRequestDone) then
         FOnRequestDone(Self, FRequestType, FRequestDoneError);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure THttpCli.WMHttpRequestDone(var msg: TMessage);
+begin
+   TriggerRequestDone2;  { V8.61 }
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure THttpCli.TriggerCommand(var S: String);  { V8.61 }
+begin
+    if Assigned(FOnCommand) then
+        FOnCommand(Self, S);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure THttpCli.TriggerHeaderData;   { V8.61 }
+begin
+    if Assigned(FOnHeaderData) then
+        FOnHeaderData(Self);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure THttpCli.TriggerLocationChange;  { V8.61 }
+begin
+    if Assigned(FOnLocationChange) then
+         FOnLocationChange(Self);
 end;
 
 
@@ -2047,7 +2195,8 @@ begin
     end;
 
     FStatusCode       := 404;
-    FReasonPhrase     := 'Connection aborted on request';
+    if FReasonPhrase = '' then  { V8.55 may have SSL handshake error }
+        FReasonPhrase := 'Connection aborted on request';
     FRequestDoneError := httperrAborted;
 
     if bFlag then
@@ -2079,7 +2228,8 @@ begin
     FWMLoginQueued := FALSE;
     FStatusCode    := 0;
     FLocationFlag  := False;
-     
+    FReasonPhrase  := '';  { V8.55 } 
+
     FCtrlSocket.OnSessionClosed := SocketSessionClosed;
 
     if FCtrlSocket.State = wsConnected then begin
@@ -2098,7 +2248,10 @@ begin
         { SocketFamily in case a host name is either a valid IPv6 or IPv4 }
         { address.                                                        }
         FCtrlSocket.Addr := FHostName;
-        FCtrlSocket.DnsLookup(FHostName);
+        if (FSocksServer = '') or (FSocksLevel = '4') then  { V8.51 socks5 takes host name }
+            FCtrlSocket.DnsLookup(FHostName)
+        else
+            SocketDNSLookupDone(self, 0);    { V8.51 skip DNS lookup }
     except
         on E: Exception do begin
             FStatusCode   := 404;
@@ -2113,7 +2266,7 @@ end;
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure THttpCli.DoBeforeConnect;
 begin
-    FCtrlSocket.Addr                := FDnsResult;
+    FCtrlSocket.Addr                := FDnsResult; { V8.51 for SOCKS5 may be host name }
     FCtrlSocket.LocalAddr           := FLocalAddr; {bb}
     FCtrlSocket.LocalAddr6          := FLocalAddr6;  { V8.02 }
     FCtrlSocket.Port                := FPort;
@@ -2140,7 +2293,14 @@ end;
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure THttpCli.SocketDNSLookupDone(Sender: TObject; ErrCode: Word);
+var
+    I: Integer;
 begin
+{$IFNDEF NO_DEBUG_LOG}
+    if CheckLogOptions(loProtSpecInfo) then
+        DebugLog(loProtSpecInfo, 'Socket DNS Lookup Done - '  +
+                                FCtrlSocket.DnsResultList.CommaText);  { V8.60 }
+{$ENDIF}
     if ErrCode <> 0 then begin
         if FState = httpAborting then
             Exit;
@@ -2150,33 +2310,61 @@ begin
         SocketSessionClosed(Sender, ErrCode);
     end
     else begin
-        FDnsResult            := FCtrlSocket.DnsResult;
+        if (FSocksServer = '') or (FSocksLevel = '4') then begin  { V8.51 socks5 takes host name }
+
+        { V8.57 allow application to change DnsResult to one of the several offered, round robin or IPV4/IPV6 }
+            if Assigned(FOnSelectDns) then begin
+                FDnsResult := FCtrlSocket.DnsResult;
+                FOnSelectDns(Self, FCtrlSocket.DnsResultList, FDnsResult);
+            end
+            else begin
+
+              { V8.60 DNS lookup may return multiple IP addrese, round robin through
+                them trying each on multiple retries.  Addresses taken consecutively
+                from DnsResultList unless FLastAddrOK has been set on a successful
+                connect, when it will re-used for the next attempt if still in
+                DnsResultList.  Loop to start again when all addresses tried.  }
+
+                FTotDnsResult := FCtrlSocket.DnsResultList.Count;
+                if (FTotDnsResult <= 0) then Exit;  { sanity check }
+
+              { single DNS result, nothing more to do }
+                if (FTotDnsResult = 1) then
+                    FDnsResult := FCtrlSocket.DnsResult
+                else begin
+                  { if last succesaful IP address in list of results, use it again }
+                    FDnsResult := '';
+                    if (FLastAddrOK <> '') then begin
+                        for I := 0 to FTotDnsResult - 1 do begin
+                            if FLastAddrOK = FCtrlSocket.DnsResultList[I] then begin
+                                FCurrDnsResult := I;
+                                FDnsResult := FLastAddrOK;
+        {$IFNDEF NO_DEBUG_LOG}
+                                if CheckLogOptions(loProtSpecInfo) then
+                                    DebugLog(loProtSpecInfo, 'Reusing Last OK Address: ' + FLastAddrOK);
+        {$ENDIF}
+                                break;
+                            end;
+                        end;
+                    end;
+
+                  { not found it, find next, loop to start if gone past last }
+                    if FDnsResult = '' then begin
+                        inc (FCurrDnsResult);
+                        if (FCurrDnsResult >= FTotDnsResult) then
+                            FCurrDnsResult := 0;
+                        FDnsResult := FCtrlSocket.DnsResultList[FCurrDnsResult];
+        {$IFNDEF NO_DEBUG_LOG}
+                        if CheckLogOptions(loProtSpecInfo) then
+                            DebugLog(loProtSpecInfo, 'Alternate Address: ' + FDnsResult);
+        {$ENDIF}
+                    end;
+                end;
+            end;
+        end
+        else
+            FDnsResult := FHostName;
         StateChange(httpDnsLookupDone);  { 19/09/98 }
-{$IFDEF UseNTLMAuthentication}
-        { NTLM authentication is alive only for one connection            }
-        { so when we reconnect to server NTLM auth states must be reseted }
-        (* Removed by *ML* on May 02, 2005 
-        if FAuthNTLMState = ntlmDone then
-            FAuthNTLMState      := ntlmNone;  {BLD NTLM}
-
-        if FProxyAuthNTLMState = ntlmDone then begin
-            FProxyAuthNTLMState := ntlmNone;  {BLD NTLM}
-            FAuthNTLMState      := ntlmNone;
-        end;
-        *)
-{$ENDIF}
-        { Basic authentication is alive only for one connection            }
-        { so when we reconnect to server Basic auth states must be reseted }
-        (* Removed by *ML* on May 02, 2005 
-        if FAuthBasicState = basicDone then
-            FAuthBasicState      := basicNone;
-
-        if FProxyAuthBasicState = BasicDone then begin
-            FProxyAuthBasicState := basicNone;
-            FAuthBasicState      := basicNone;
-        end;
-        *)
-
         DoBeforeConnect;
         FCurrentHost          := FHostName;
         FCurrentPort          := FPort;
@@ -2208,11 +2396,12 @@ begin
             FRequestDoneError := FCtrlSocket.LastError;
             FStatusCode       := 404;
             FReasonPhrase     := 'can''t connect: ' +
-                                 WSocketErrorDesc(FCtrlSocket.LastError) +
+                                 WSocketErrorMsgFromErrorCode(FCtrlSocket.LastError) +  { V8.51 handles proxy errors }
+                              {   WSocketErrorDesc(FCtrlSocket.LastError) +  }
                                  ' (Error #' + IntToStr(FCtrlSocket.LastError) + ')';
             FCtrlSocket.Close;
             SocketSessionClosed(Sender, FCtrlSocket.LastError);
-        end;    
+        end;
     end;
 end;
 
@@ -2221,15 +2410,17 @@ end;
 procedure THttpCli.SocketSessionConnected(Sender : TObject; ErrCode : Word);
 begin
 {$IFNDEF NO_DEBUG_LOG}
-    if CheckLogOptions(loProtSpecInfo) then  { V1.91 } { replaces $IFDEF DEBUG_OUTPUT  }
-            DebugLog(loProtSpecInfo, 'SessionConnected');
+    if CheckLogOptions(loProtSpecInfo) then  { V1.91 }
+        DebugLog(loProtSpecInfo, 'SessionConnected, error='  +
+          IntToStr (ErrCode) + ' to ' + IcsFmtIpv6AddrPort(AddrResolvedStr, FPort));  { V8.60 }
 {$ENDIF}
     if ErrCode <> 0 then begin
         FRequestDoneError := ErrCode;
         FStatusCode       := 404;
-        FReasonPhrase     := WSocketErrorDesc(ErrCode) +
-                             ' (Error #' + IntToStr(ErrCode) + ')';
-        {SocketSessionClosed(Sender, ErrCode)}  {14/12/2003};
+        FReasonPhrase     := WSocketErrorMsgFromErrorCode(ErrCode) +  { V8.51 handles proxy errors }
+                             ' (Error #' + IntToStr(ErrCode) + ') to ' +
+                               IcsFmtIpv6AddrPort(AddrResolvedStr, FPort);  { V8.60 }
+        FLastAddrOK := '';  { V8.60 }
         TriggerSessionConnected; {14/12/2003}
         Exit;
     end;
@@ -2237,6 +2428,7 @@ begin
     FLocationFlag := FALSE;
 
     FConnected := TRUE;
+    FLastAddrOK := AddrResolvedStr;  { V8.60 }
     StateChange(httpConnected);
     TriggerSessionConnected;
 
@@ -2306,7 +2498,7 @@ begin
                     SocketDataSent(FCtrlSocket, 0);
                 {$ENDIF}
                 end;
-            httpPATCH:  { V8.06 } 
+            httpPATCH:  { V8.06 }
                 begin
                     SendRequest('PATCH', FRequestVer);
                 {$IFDEF UseNTLMAuthentication}
@@ -2368,8 +2560,7 @@ var
     Buf : String;
 begin
     Buf := Cmd;
-    if Assigned(FOnCommand) then
-        FOnCommand(Self, Buf);
+    TriggerCommand(Buf);  { V8.61 }
     if Length(Buf) > 0 then
     {$IFDEF COMPILER12_UP}
         StreamWriteString(FReqStream, Buf, CP_ACP);
@@ -2437,8 +2628,12 @@ begin
             Headers.Add('Host: ' + FTargetHost)
         else
             Headers.Add('Host: ' + FTargetHost + ':' + FTargetPort);
-        if FNoCache then
-            Headers.Add('Pragma: no-cache');
+        if FNoCache then begin
+            if Version = '1.0' then
+                Headers.Add('Pragma: no-cache')
+            else
+                Headers.Add('Cache-Control: no-cache');  { V8.61 }
+        end;
         if FCurrProxyConnection <> '' then
             Headers.Add('Proxy-Connection: ' + FCurrProxyConnection);
         if (Method = 'CONNECT') then                                   // <= 12/29/05 AG
@@ -2469,7 +2664,14 @@ begin
                 FProxyAuthNtlmState := ntlmMsg1;
           {$ENDIF}
         end;
-        
+
+      { V8.54 add OAuth header, Bearer is the official way, X-Auth-Token unofficial }
+        if (FServerAuth = httpAuthBearer) and (FAuthBearerToken <> '') then
+            Headers.Add('Authorization: Bearer ' + FAuthBearerToken);
+        if (FServerAuth = httpAuthToken) and (FAuthBearerToken <> '') then
+            Headers.Add('X-Auth-Token: ' + FAuthBearerToken);
+        if (FServerAuth = httpAuthJWT) and (FAuthBearerToken <> '') then   { V8.62 }
+            Headers.Add('Authorization: JWT ' + FAuthBearerToken);
 
 {$IFDEF UseNTLMAuthentication}
         if (FProxyAuthNTLMState <> ntlmMsg1) then begin
@@ -2528,6 +2730,14 @@ begin
             end;
         end;                                                                            {JMR!! Added this line!!!}
         FAcceptRanges := '';
+
+      { V8.52 add extra headers, ignore any without colon }
+        if FExtraHeaders.Count > 0 then begin
+            for N := 0 to FExtraHeaders.Count - 1 do begin
+                if Pos (': ', FExtraHeaders[N]) > 1 then
+                    Headers.Add(FExtraHeaders[N]);
+            end;
+        end;    
 
 {SendCommand('UA-pixels: 1024x768'); }
 {SendCommand('UA-color: color8'); }
@@ -2650,7 +2860,6 @@ begin
                     FRcvdCount := FRcvdCount + K;
                     FChunkRcvd := FChunkRcvd + K;
                 {$IFDEF UseContentCoding}
-//                  FContentCodingHnd.WriteBuffer(P, K);
                     FContentCodingHnd.WriteBuffer(@FReceiveBuffer[P], K);   // FP 09/09/06
                 {$ELSE}
                     if Assigned(FRcvdStream) then
@@ -2664,7 +2873,6 @@ begin
             end;
             if FChunkState = httpChunkSkipDataEnd then begin
                 while N > 0 do begin
-//                  if P^ = #10 then begin
                     if Ord(FReceiveBuffer[P]) = 10 then begin  // FP 09/09/06
                         if FChunkLength = 0 then
                             { Last chunk is a chunk with length = 0 }
@@ -2694,25 +2902,8 @@ begin
             if (httpoBandwidthControl in FOptions) and Assigned(FBandwidthTimer)
             then FBandwidthTimer.Enabled := FALSE;
 {$ENDIF}
-{$IFDEF UseContentCoding} {V7.06}
- {           FContentCodingHnd.Complete;  V7.19 moved to TriggerDocEnd }
-        {$IFNDEF NO_DEBUG_LOG}
- {           if CheckLogOptions(loProtSpecInfo) then begin
-                if Assigned(FRcvdStream) and (FContentEncoding <> '') then begin
-                    DebugLog(loProtSpecInfo, FContentEncoding +
-                             ' content uncompressed from ' +
-                             IntToStr(FContentLength) + ' bytes to ' +
-                             IntToStr(FRcvdStream.Size) + ' bytes');
-                end;
-            end;   }
-        {$ENDIF}
-{$ENDIF}
             TriggerDocEnd;
-            if {(FResponseVer = '1.0') or (FRequestVer = '1.0') or }
-                { SAE's modification is almost right but if you have HTTP/1.0  }
-                { not necesary must disconect after request done               }
-                { [rawbite 31.08.2004 Connection controll]                     }
-                (FCloseReq) then     { SAE 01/06/04 }
+            if (FCloseReq) then     { SAE 01/06/04 }
                 FCtrlSocket.CloseDelayed
         end;
     end
@@ -2720,7 +2911,6 @@ begin
         if FBodyDataLen > 0 then begin
             FRcvdCount := FRcvdCount + FBodyDataLen;
 {$IFDEF UseContentCoding}
-//          FContentCodingHnd.WriteBuffer(FBodyData, FBodyDataLen);
             FContentCodingHnd.WriteBuffer(@FReceiveBuffer[FBodyData], FBodyDataLen); // FP 09/09/06
 {$ELSE}
             if Assigned(FRcvdStream) then
@@ -2743,18 +2933,6 @@ begin
                Assigned(FBandwidthTimer) then
                 FBandwidthTimer.Enabled := FALSE;
 {$ENDIF}
-{$IFDEF UseContentCoding}
- {           FContentCodingHnd.Complete;  V7.19 moved to TriggerDocEnd }
-        {$IFNDEF NO_DEBUG_LOG}
- {           if CheckLogOptions(loProtSpecInfo) then begin
-                if Assigned(FRcvdStream) and (FContentEncoding <> '') then begin
-                    DebugLog(loProtSpecInfo, FContentEncoding + ' content uncompressed from ' +
-                      IntToStr(FContentLength) + ' bytes to ' +
-                               IntToStr(FRcvdStream.Size) + ' bytes');
-                end;
-            end;  }
-        {$ENDIF}
-{$ENDIF}
             TriggerDocEnd;
             if {(FResponseVer = '1.0') or (FRequestVer = '1.0') or  }
                 { see above                                }
@@ -2770,48 +2948,6 @@ begin
             DebugLog(loProtSpecInfo, 'GetBodyLineNext end');
 {$ENDIF}
 end;
-
-
-{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-{ If UNICODE is defined each byte in Buffer must be ASCII (ord < 128) ! }
-(*  V8.50 moved to Utils
-procedure MoveTBytesToString(
-    const Buffer : TBytes;
-    OffsetFrom   : Integer;
-    var Dest     : String;
-    OffsetTo     : Integer;
-    Count        : Integer);
-{$IFDEF UNICODE}
-var
-    PSrc  : PByte;
-    PDest : PChar;
-begin
-    PSrc  := Pointer(Buffer);
-    PDest := Pointer(Dest);
-    Dec(OffsetTo); // String index!
-    while Count > 0 do begin
-        PDest[OffsetTo] := Char(PSrc[OffsetFrom]);
-        Inc(OffsetTo);
-        Inc(OffsetFrom);
-        Dec(Count);
-    end;
-{$ELSE}
-begin
-    Move(Buffer[OffsetFrom], Dest[OffsetTo], Count);
-{$ENDIF}
-end;   *)
-
-
-{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-(* V8.50 moved to Utils
-procedure MoveTBytes(
-    var Buffer : Tbytes;
-    OffsetFrom : Integer;
-    OffsetTo   : Integer;
-    Count      : Integer); {$IFDEF USE_INLINE} inline; {$ENDIF}
-begin
-    Move(Buffer[OffsetFrom], Buffer[OffsetTo], Count);
-end;  *)
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
@@ -2848,8 +2984,6 @@ begin
         StateChange(httpWaitingBody);
         FNext := GetBodyLineNext;
         TriggerHeaderEnd;
-//      FBodyData    := @FLastResponse[1];         FP 09/09/06
-//      FBodyDataLen := Length(FLastResponse);     FP 09/09/06
         GetBodyLineNext;
         Exit;
     end;
@@ -2882,24 +3016,11 @@ begin
              (FStatusCode = 301) or              { Added 06/10/2004 }
              (FStatusCode = 302) or              { Added 06/10/2004 }
              (FStatusCode = 304)))               { Added 12/03/2004 }
-           (* or //                              { Removed again V7.20 }             
-             { AFAIR, next two lines have been added since it might }
-             { happen that a body is not sent with both responses.  }
-             { Unfortunately we truncate body data in those cases   }
-             { and we have to ensure that FReceiveLen is cleared    }
-             { properly. If it's not done below it's now done in    }
-             { SocketSessionClosed() a little bit later anyway. (AG)}
-             (FStatusCode = 401) or              { Added 12/28/2005 } //AG 12/28/05
-             (FStatusCode = 407)))               { Added 12/28/2005 } //AG 12/28/05
-            *) { V7.20 }
-           or
-            (FContentLength = 0)
-           or
-            (FRequestType = httpHEAD) then begin
-            { TriggerHeaderEnd;  }{ Removed 10/01/2004 }
-            if {(FResponseVer = '1.0') or (FRequestVer = '1.0') or}
-                { [rawbite 31.08.2004 Connection controll] }
-                FCloseReq then begin
+             or
+              (FContentLength = 0)
+             or
+              (FRequestType = httpHEAD) then begin
+            if FCloseReq then begin
                 if FLocationFlag then          { Added 16/02/2004 }
                     StartRelocation            { Added 16/02/2004 }
                 else begin                     { Added 16/02/2004 }
@@ -2935,9 +3056,7 @@ begin
 
         StateChange(httpWaitingBody);
         FNext := GetBodyLineNext;
-        {TriggerHeaderEnd;  Removed 11/11/04 because it is already trigger above }
         if FReceiveLen > 0 then begin
-//            FBodyData    := FReceiveBuffer;
             FBodyData    := 0;  // FP 09/09/06
             if (FContentLength < 0) or
                ((FRcvdCount + FReceiveLen) <= FContentLength) then
@@ -2959,8 +3078,6 @@ begin
             else
                 CheckDelaySetReady; { 09/26/08 ML }
         end;
-        { if FStatusCode >= 400 then }   { 01/11/01 }
-        {    FCtrlSocket.Close;      }
         Exit;
     end;
 
@@ -3013,21 +3130,22 @@ begin
         if Field = 'location' then begin { Change the URL ! }
             if Copy(Data, 1, 2) = '//' then         { V7.22 }
                 Data := FProtocol + ':' + Data;     { V7.22 }
-            if FRequestType in [httpPUT, httpPATCH] then begin   { V8.06 } 
+            if FRequestType in [httpPUT, httpPATCH] then begin   { V8.06 }
                  { Location just tell us where the document has been stored }
                  FLocation := Data;
             end
-            else if FFollowRelocation then begin    {TED}
+
+          { V8.60 201 created means newly created resource }
+            else if (StatusCode = 201) then begin
+                 FLocation := Data;
+            end
+
+          { V8.60 301, 302, 303, 307 and 308 mean relocation to new relative or absolute URL  }
+          { ignore 4xx and 5xx responses }
+          { NOTE we don't set FLocation if we are actually relocating somewhere, only for data  }
+            else if FFollowRelocation and    {TED}
+                    (FStatusCode >= 301) and (FStatusCode <= 308) then begin  { V8.60 not for 201 }
                 { OK, we have a real relocation !       }
-                { URL with relocations:                 }
-                { http://www.webcom.com/~wol2wol/       }
-                { http://www.purescience.com/delphi/    }
-                { http://www.maintron.com/              }
-                { http://www.infoseek.com/AddURL/addurl }
-                { http://www.micronpc.com/              }
-                { http://www.amazon.com/                }
-                { http://count.paycounter.com/?fn=0&si=44860&bt=msie&bv=5&    }
-                { co=32&js=1.4&sr=1024x768&re=http://www.thesite.com/you.html }
                 FLocationFlag := TRUE;
                 if Proxy <> '' then begin
                     { We are using a proxy }
@@ -3051,10 +3169,6 @@ begin
                         then begin
                         { Relative location }
                         FPath     := GetBaseUrl(FPath) + Data;
-                        { if Proto = '' then
-                            Proto := 'http';
-                          FLocation := Proto + '://' + FHostName + '/' + FPath;
-                        }
                         FLocation := FPath;
                     end
                     else begin
@@ -3209,7 +3323,31 @@ begin
             else if (LowerCase(Trim(Data)) = 'keep-alive') then
                 FCloseReq := FALSE;
         end
-    {   else if Field = 'date' then }
+        else if Field = 'date' then begin     { V8.61 }
+            try
+                FRespDateDT := RFC1123_StrToDate(Data) ;
+            except
+                FRespDateDT := 0 ;
+            end ;
+        end
+        else if Field = 'last-modified' then begin     { V8.61 }
+            try
+                FRespLastModDT := RFC1123_StrToDate(Data) ;
+            except
+                FRespLastModDT := 0 ;
+            end ;
+        end
+        else if Field = 'expires' then begin     { V8.61 }
+            try
+                FRespExpires := RFC1123_StrToDate(Data) ;
+            except
+                FRespExpires := 0 ;
+            end ;
+        end
+        else if Field = 'age' then      { V8.61 }
+            FRespAge := atoi(Data)
+        else if Field = 'cache-control' then      { V8.61 }
+            FRespCacheControl := Data     // should really parse field
     {   else if Field = 'mime-version' then }
     {   else if Field = 'pragma' then }
     {   else if Field = 'allow' then }
@@ -3220,13 +3358,11 @@ begin
           FContentEncoding := Data
 {$ENDIF}
     {   else if Field = 'expires' then }
-    {   else if Field = 'last-modified' then }
    end
    else { Ignore  all other responses }
        ;
 
-    if Assigned(FOnHeaderData) then
-        FOnHeaderData(Self);
+   TriggerHeaderData;   { V8.61 }
 
 {    if FStatusCode >= 400 then    Moved above 01/11/01 }
 {        FCtrlSocket.Close;                             }
@@ -3248,6 +3384,11 @@ begin
     FContentLength    := -1;
     FContentType      := '';  { 25/09/1999 }
     FTransferEncoding := '';  { 28/12/2003 }
+    FRespDateDT       := 0;   { V8.61 }
+    FRespLastModDT    := 0;   { V8.61 }
+    FRespExpires      := 0;   { V8.61 }
+    FRespAge          := -1;  { V8.61 }
+    FRespCacheControl := '';  { V8.61 }
 {$IFDEF UseContentCoding}
     FContentEncoding  := '';
 {$ENDIF}
@@ -3277,7 +3418,7 @@ begin
     if (Rq <> httpCLOSE) and (FState <> httpReady) then
         raise EHttpException.Create('HTTP component ' + Name + ' is busy', httperrBusy);
 
-    if (Rq in [httpPOST, httpPUT, httpPATCH]) and    { V8.06 } 
+    if (Rq in [httpPOST, httpPUT, httpPATCH]) and    { V8.06 }
        (not Assigned(FSendStream)
        { or (FSendStream.Position = FSendStream.Size)}   { Removed 21/03/05 }
        ) then
@@ -3307,6 +3448,21 @@ begin
     FCurrPassword        := FPassword;
     FCurrConnection      := FConnection;
     FCurrProxyConnection := FProxyConnection;
+
+    { V8.62 if proxy URL is passed, parse it as proxy properties }
+    { http://[user[:password]@]host:port }
+    if (Length(FProxyURL) > 6) and (Pos (':', Copy(FProxyURL, 6, 9999)) > 5) then begin
+        ParseURL(FProxyURL, Proto, User, Pass, Host, Port, Path);
+        { pending, check https for SSL prpoxy, maybe socks for socks proxy }
+        if Proto = 'http' then begin
+            FProxy := Host;
+            FProxyPort := Port;
+            FProxyUsername := User;
+            FProxyPassword := Pass;
+            if (FProxyUsername <> '') and (FProxyPassword <> '') then
+                FProxyAuth := httpAuthBasic;
+        end;
+    end;
 
     { Parse url and proxy to FHostName, FPath and FPort }
     if FProxy <> '' then begin
@@ -3546,10 +3702,12 @@ begin
             is no more triggered for status 401 and 407.
 *}
     {* if FStatusCode > 401 then    Dec 14, 2004 *}
-    if FRequestDoneError <> httperrNoError then                       { V7.23 }
-        raise EHttpException.Create(FReasonPhrase, FRequestDoneError) { V7.23 }
-    else if (FStatusCode >= 400) and (FStatusCode <> 401) and (FStatusCode <> 407) then
-        raise EHttpException.Create(FReasonPhrase, FStatusCode);
+    if NOT FResponseNoException then begin  { V8.54 should error exceptions be skipped? }
+        if FRequestDoneError <> httperrNoError then                       { V7.23 }
+            raise EHttpException.Create(FReasonPhrase, FRequestDoneError) { V7.23 }
+        else if (FStatusCode >= 400) and (FStatusCode <> 401) and (FStatusCode <> 407) then
+            raise EHttpException.Create(FReasonPhrase, FStatusCode);
+    end;
 end;
 
 
@@ -3569,6 +3727,10 @@ var
     I                                   : Integer;
     AllowMoreRelocations                : Boolean;
 begin
+{$IFNDEF NO_DEBUG_LOG}
+    if CheckLogOptions(loProtSpecInfo) then  { V8.55 }
+        DebugLog(loProtSpecInfo, 'Starting LocationSessionClosed');
+{$ENDIF}
   { Remove any bookmark from the URL }
     I := Pos('#', FLocation);
     if I > 0 then
@@ -3595,7 +3757,7 @@ begin
         FContentLength    := -1;
         FContentType      := '';
         FTransferEncoding := ''; { 28/12/2003 }
-        FResponseVer      := ''; { V7.20 } 
+        FResponseVer      := ''; { V7.20 }
     {$IFDEF UseContentCoding}
         FContentEncoding  := '';
     {$ENDIF}
@@ -3635,8 +3797,7 @@ begin
     end ;
 
     { Trigger the location changed event }
-    if Assigned(FOnLocationChange) then
-         FOnLocationChange(Self);
+    TriggerLocationChange;  { V8.61 }
     { Clear header from previous operation }
     FRcvdHeader.Clear;
     { Clear status variables from previous operation }
@@ -3959,28 +4120,6 @@ begin
 end;
 
 
-{Bjornar - Start}
-{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-(* V8.50 moved to Utils as IcsTbytesStarts
-function THttpCli.StartsWithText(Source : TBytes; Find : PAnsiChar) : Boolean;
-begin
-    Result := FALSE;
-    if (StrLIComp(PAnsiChar(Source), Find, Length(Find)) = 0) then
-       Result := TRUE;
-end;
-
-
-{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
- V8.50 moved to Utils as IcsTbytesContains
-function THttpCli.ContainsText(Source : TBytes; Find : PAnsiChar) : Boolean;
-begin
-    Result := FALSE;
-    if (StrPos(PAnsiChar(Source), Find) <> nil) then
-      Result := TRUE;
-end;
-{Bjornar - End}
-*)
-
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure THttpCli.StartRelocation;
 var
@@ -3997,13 +4136,8 @@ begin
     FHeaderLineCount  := 0;
     FBodyLineCount    := 0;
 
-    if {(FResponseVer     = '1.1') and}
-        { [rawbite 31.08.2004 Connection controll] }
-       (FCurrentHost     = FHostName) and
-       (FCurrentPort     = FPort) and
-       (FCurrentProtocol = FProtocol) and
-       (not FCloseReq) then begin      { SAE 01/06/04 }
-
+    if (FCurrentHost = FHostName) and (FCurrentPort = FPort) and
+            (FCurrentProtocol = FProtocol) and (not FCloseReq) then begin      { SAE 01/06/04 }
         Inc (FLocationChangeCurCount) ;
         if FLocationChangeCurCount > FLocationChangeMaxCount then begin
             AllowMoreRelocations := false;
@@ -4018,8 +4152,7 @@ begin
 
         { No need to disconnect }
         { Trigger the location changed event  27/04/2003 }
-        if Assigned(FOnLocationChange) then
-             FOnLocationChange(Self);
+        TriggerLocationChange;  { V8.61 }
         SaveLoc := FLocation;  { 01/05/03 }
         SavedStatus := FStatusCode;  { V8.37 keep if before it's lost }
         InternalClear;   { clears most header vars }
@@ -4182,6 +4315,9 @@ begin
         end;
         if I < 0 then
             Exit;
+        if assigned (FAuthNtlmSession) then                                                                             // V8.61
+            FAuthNtlmSession.NtlmMessage := Base64Decode (Copy(FDoAuthor.Strings[I], 6, Length (FDoAuthor.Strings[I]))) // V8.61
+        else                                                                                                            // V8.61
         FProxyNTLMMsg2Info  := NtlmGetMessage2(Copy(FDoAuthor.Strings[I], 6, 1000));
         FProxyAuthNTLMState := ntlmMsg3;
         LoginDelayed;
@@ -4461,7 +4597,7 @@ end;
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 {$IFDEF USE_SSL}
-procedure THttpCli.SslHandshakeDone(
+procedure THttpCli.TransferSslHandshakeDone(         { V8.61 }
     Sender         : TObject;
     ErrCode        : Word;
     PeerCert       : TX509Base;
@@ -4469,17 +4605,25 @@ procedure THttpCli.SslHandshakeDone(
 begin
     if Assigned(TSslHttpCli(Self).FOnSslHandshakeDone) then begin
         FReasonPhrase := '';  { V8.12 }
-        TSslHttpCli(Self).FOnSslHandshakeDone(Self,       // FP: was Sender
-                                              ErrCode,
-                                              PeerCert,
-                                              Disconnect);
+        TSslHttpCli(Self).FOnSslHandshakeDone(Self, ErrCode, PeerCert, Disconnect);
     end;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure THttpCli.SslHandshakeDone(
+    Sender         : TObject;
+    ErrCode        : Word;
+    PeerCert       : TX509Base;
+    var Disconnect : Boolean);
+begin
+    TransferSslHandshakeDone(Self, ErrCode, PeerCert, Disconnect);  { V8.61 }
     if (ErrCode <> 0) or Disconnect then begin
         FStatusCode       := 404;
         if FReasonPhrase = '' then begin  { V8.12 may have set better reason in event }
-            if Disconnect then
-                FReasonPhrase := 'SSL custom abort'
-            else
+         //   if Disconnect then  { V8.55 we always disconnect failure... }
+         //       FReasonPhrase := 'SSL custom abort'
+         //   else
                 FReasonPhrase := 'SSL handshake failed - ' + CtrlSocket.SslHandshakeRespMsg;  { V8.12 }
         end;
         FRequestDoneError := httperrAborted;
@@ -4893,9 +5037,14 @@ begin
     { Result := FNTLM.GetMessage1(FNTLMHost, FNTLMDomain);            }
     { it is very common not to send domain and workstation strings on }
     { the first message                                               }
-    if ForProxy then
+    if ForProxy then begin
+        if assigned (FAuthNtlmSession) then                  // V8.61
+            Result := 'Proxy-Authorization: NTLM ' +
+                      FAuthNtlmSession.GetUserCredentials    // V8.61
+        else
         Result := 'Proxy-Authorization: NTLM ' +
                   NtlmGetMessage1('', '', FLmCompatLevel)  { V7.25 }
+    end
     else
         Result := 'Authorization: NTLM ' +
                   NtlmGetMessage1('', '', FLmCompatLevel); { V7.25 }
@@ -4918,8 +5067,12 @@ begin
 
     { hostname is the local hostname }
     if ForProxy then begin
-        NtlmParseUserCode(FProxyUsername, LDomain, LUser);
-        Result := 'Proxy-Authorization: NTLM ' +
+        if assigned (FAuthNtlmSession) then                   // V8.61
+            Result := 'Proxy-Authorization: NTLM ' +
+                      FAuthNtlmSession.GetUserCredentials     // V8.61
+        else begin
+            NtlmParseUserCode(FProxyUsername, LDomain, LUser);
+            Result := 'Proxy-Authorization: NTLM ' +
                   NtlmGetMessage3(LDomain,
                                   Hostname,
                                   LUser,
@@ -4927,6 +5080,7 @@ begin
                                   FProxyNTLMMsg2Info, { V7.25 }
                                   CP_ACP,
                                   FLmCompatLevel);    { V7.25 }
+        end
     end
     else begin
         NtlmParseUserCode(FCurrUsername, LDomain, LUser);
@@ -5090,6 +5244,9 @@ begin
         FCtrlSocket.SslEnable := FALSE
     else
         FCtrlSocket.SslEnable := (FProtocol = 'https');
+  { V8.62 set Alpn Protocols in SslCtx }
+    if FAlpnProtoList.Count > 0 then
+        FCtrlSocket.SslContext.SetSslAlpnProtocols(FAlpnProtoList);
 end;
 
 
@@ -5191,6 +5348,28 @@ begin
         Result := FCtrlSocket.SslAcceptableHosts
     else
         Result := nil;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+{ V8.62 keep application layer protocols supported, may not be able to set
+        it yet since needs SslCtx }
+procedure TSslHttpCli.SetAlpnProtocols(ProtoList: TStrings);
+begin
+    if NOT Assigned(ProtoList) then Exit;
+    if FAlpnProtoList.Text <> ProtoList.Text then
+        FAlpnProtoList.Assign(ProtoList);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+{ V8.62 keep application layer protocols supported }
+function TSslHttpCli.GetAlpnProtocol: String;
+begin
+    if Assigned(FCtrlSocket) then
+        Result := FCtrlSocket.SslAlpnProto
+    else
+        Result := '';
 end;
 
 

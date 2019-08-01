@@ -9,11 +9,10 @@ Description:  THttpServer implement the HTTP server protocol, that is a
               check for '..\', '.\', drive designation and UNC.
               Do the check in OnGetDocument and similar event handlers.
 Creation:     Oct 10, 1999
-Version:      8.50
+Version:      8.61
 EMail:        francois.piette@overbyte.be  http://www.overbyte.be
-Support:      Use the mailing list twsocket@elists.org
-              Follow "support" link at http://www.overbyte.be for subscription.
-Legal issues: Copyright (C) 1999-2017 by François PIETTE
+Support:      https://en.delphipraxis.net/forum/37-ics-internet-component-suite/
+Legal issues: Copyright (C) 1999-2019 by François PIETTE
               Rue de Grady 24, 4053 Embourg, Belgium.
               <francois.piette@overbyte.be>
               SSL implementation includes code written by Arno Garrels,
@@ -44,23 +43,6 @@ Legal issues: Copyright (C) 1999-2017 by François PIETTE
                  to the author. Use a nice stamp and mention your name, street
                  address, EMail address and any comment you like to say.
 
-How-To:
-
-Authentication:
-  To implement authentication in your website, you must install an event
-  handler for OnAuthGetType. In this handler, you check for each
-  Client.Path which need to be password protected. For each selected path, you
-  have to set Client.AuthType to whatever authentication method you need (none,
-  basic or digest). You could also set Client.AuthRealm to whatever realm you
-  need. By default AuthType and AuthRealm are initialized from the corresponding
-  values ate the server component level.
-  The next thing to do is to implement an event handler for the
-  OnAuthGetPassword event. This event is triggered whenever the component need
-  to get a password to check with what the client sent. Usually, you'll get
-  the password using Client.AuthUsername property which is the username
-  provided by the client. You may also use the path and the realm to
-  implement more complex passwrod system.
-  Use the OnAuthResult event to log authentication success or failure.
 
 History:
 If not otherwise noted, changes are by Francois Piette
@@ -434,8 +416,61 @@ Jul 5 2017  V8.49 Added .well-known directory support.  If WellKnownPath is
 Aug 10, 2017 V8.50 Fixed bug setting WebRedirectStat
                    Fixed bug that first IcsHost could not be SSL
                    Internal FSslEnable now FHttpSslEnable to ease confusion
+Jul 6, 2018  V8.56 Added OnSslAlpnSelect called after OnSslServerName for HTTP/2
+Oct 5, 2018 V8.57  Added SslCliCertMethod to allow server to request a client
+                       SSL certificate from the browser, NOTE you should check it
+                       the OnSslHandshakeDone event and close the connection if
+                       invalid, beware this usually causes the browser to request
+                       a certificate which can be obtrusive.
+                   Allow SSL certificates to be ordered and installed automatically
+                       by RecheckSslCerts if SslCertAutoOrder=True and so specified in
+                       IcsHosts, if a TSslX509Certs component is attached and a
+                       certificate supplier account has been created (by the
+                       OverbyteIcsX509CertsTst sample application).
+Oct 19, 2018 V8.58 Increased ListenBacklog property default to 15 to handle
+                      higher server loads before rejecting new connections.
+                   Some documentation on IcsHosts and main components.
+Dec 04, 2018 V8.59 Added AUTO_X509_CERTS define set in OverbyteIcsDefs.inc which
+                      can be disabled to remove a lot of units if automatic SSL/TLS
+                      ordering is not required, saves up to 1 meg of code.
+Feb 20, 2019 V8.60 Added WebLogIdx to THttpConnection for web logging.
+                   Fixed bug Close did not close multi-listener sockets.
+Mar 29, 2019 V8.61 OAS : Add InBound value for TNtlmAuthSession creation
+                   because server NTLM auth is inbound and Client is outbound
 
 
+
+Quick reference guide:
+----------------------
+
+See OverbyteIcsWSocketS.pas for documentation on TSslWSocketServer whose
+properties are exposed by TSslHttpServer, TSslWSocketClient for properties
+exposed by THttpConnection, and for IcsHosts which allows the web server to
+support multiple Hosts on multiple IP addresses and ports with SSL support,
+including automatic SSL certificate ordering.
+
+TSslHttpAppSrv in OverbyteIcsHttpAppServer.pas descends from TSslHttpServer
+and adds session support and template processing based on URLs, it is generally
+preferred over TSslHttpServer.  It includes a function IcsLoadTHttpAppSrvFromIni
+that will load all major server settings from an INI file, as documented in that
+unit and the OverbyteIcsSslMultiWebServ sample application.
+
+
+Authentication:
+  To implement authentication in your website, you must install an event
+  handler for OnAuthGetType. In this handler, you check for each
+  Client.Path which need to be password protected. For each selected path, you
+  have to set Client.AuthType to whatever authentication method you need (none,
+  basic or digest). You could also set Client.AuthRealm to whatever realm you
+  need. By default AuthType and AuthRealm are initialized from the corresponding
+  values ate the server component level.
+  The next thing to do is to implement an event handler for the
+  OnAuthGetPassword event. This event is triggered whenever the component need
+  to get a password to check with what the client sent. Usually, you'll get
+  the password using Client.AuthUsername property which is the username
+  provided by the client. You may also use the path and the realm to
+  implement more complex passwrod system.
+  Use the OnAuthResult event to log authentication success or failure.
 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 {$IFNDEF ICS_INCLUDE_MODE}
@@ -520,10 +555,20 @@ uses
     OverbyteIcsWSocket,
     OverbyteIcsWSocketS,
 {$ENDIF FMX}
+{$IFDEF USE_SSL}
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+{$IFDEF FMX}
+    Ics.Fmx.OverbyteIcsSslX509Certs,  { V8.57 }
+{$ELSE}
+    OverbyteIcsSslX509Certs,  { V8.57 }
+{$ENDIF}
+{$ENDIF} // AUTO_X509_CERTS
+{$ENDIF}
 
 {$IFDEF USE_NTLM_AUTH}
     OverbyteIcsSspi,
     OverbyteIcsNtlmSsp,
+    OverbyteIcsNtlmMsgs,
 {$ENDIF}
 {$IFNDEF NO_DIGEST_AUTH}
     OverbyteIcsDigestAuth,
@@ -536,9 +581,9 @@ uses
     OverbyteIcsFormDataDecoder;
 
 const
-    THttpServerVersion = 850;
-    CopyRight : String = ' THttpServer (c) 1999-2017 F. Piette V8.50 ';
-    DefServerHeader : string = 'Server: ICS-HttpServer-8.50';   { V8.09 }
+    THttpServerVersion = 861;
+    CopyRight : String = ' THttpServer (c) 1999-2019 F. Piette V8.61 ';
+    DefServerHeader : string = 'Server: ICS-HttpServer-8.61';   { V8.09 }
     CompressMinSize = 5000;  { V7.20 only compress responses within a size range, these are defaults only }
     CompressMaxSize = 5000000;
     MinSndBlkSize = 8192 ;  { V7.40 }
@@ -846,6 +891,7 @@ type
         FWebRedirectStat       : integer;              { V8.49 }
         FonWellKnownDir        : TWellKnownConnEvent;  { V8.49 }
         FRequestProtocol       : String;               { V8.49 }
+        FWebLogIdx             : Integer;              { V8.60 }
         procedure SetSndBlkSize(const Value: Integer);
         procedure ConnectionDataAvailable(Sender: TObject; Error : Word); virtual;
         procedure ConnectionDataSent(Sender : TObject; Error : WORD); virtual;
@@ -1212,6 +1258,8 @@ type
                                                     write FWebRedirectStat;
         property onWellKnownDir    : TWellKnownConnEvent  read  FonWellKnownDir  { V8.49 }
                                                           write FonWellKnownDir;
+        property WebLogIdx         : integer        read  FWebLogIdx      { V8.60 }
+                                                    write FWebLogIdx;
 
 {$ENDIF}
     end;
@@ -1693,6 +1741,7 @@ type
         FOnSslSvrNewSession            : TSslSvrNewSession;
         FOnSslSvrGetSession            : TSslSvrGetSession;
         FOnSslServerName               : TSslServerNameEvent;     // V8.09
+        FOnSslAlpnSelect               : TSslAlpnSelect;     { V8.56 }
         procedure CreateSocket; override;
         procedure SetSslContext(Value: TSslContext);
         function  GetSslContext: TSslContext;
@@ -1730,6 +1779,18 @@ type
         procedure SetRootCA(const Value: String);                     { V8.46 }
         function  GetDHParams: String;                                { V8.45 }
         procedure SetDHParams(const Value: String);                   { V8.45 }
+        procedure TransferSslAlpnSelect(Sender: TObject;
+          ProtoList: TStrings; var SelProto : String; var ErrCode: TTlsExtError);  { V8.56 }
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+        function  GetSslX509Certs: TSslX509Certs;                     { V8.57 }
+        procedure SetSslX509Certs(const Value : TSslX509Certs);       { V8.57 }
+{$ENDIF} // AUTO_X509_CERTS
+        function  GetSslCliCertMethod: TSslCliCertMethod;             { V8.57 }
+        procedure SetSslCliCertMethod(const Value : TSslCliCertMethod); { V8.57 }
+        function  GetCertExpireDays: Integer;                         { V8.57 }
+        procedure SetCertExpireDays(const Value : Integer);           { V8.57 }
+        function  GetSslCertAutoOrder: Boolean;                       { V8.57 }
+        procedure SetSslCertAutoOrder(const Value : Boolean);         { V8.57 }
     public
         constructor Create(AOwner : TComponent); override;
         destructor  Destroy; override;
@@ -1749,6 +1810,16 @@ type
                                                            write SetRootCA;      { V8.45 }
         property  DHParams           : String              read  GetDHParams
                                                            write SetDHParams;    { V8.45 }
+        property  SslCliCertMethod   : TSslCliCertMethod   read  GetSslCliCertMethod
+                                                           write SetSslCliCertMethod; { V8.57 }
+        property  SslCertAutoOrder   : Boolean             read  GetSslCertAutoOrder
+                                                           write SetSslCertAutoOrder; { V8.57 }
+        property  CertExpireDays     : Integer             read  GetCertExpireDays
+                                                           write SetCertExpireDays; { V8.57 }
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+        property  SslX509Certs       : TSslX509Certs       read  GetSslX509Certs
+                                                           write SetSslX509Certs; { V8.57 }
+{$ENDIF} // AUTO_X509_CERTS
         property  OnSslVerifyPeer    : TSslVerifyPeerEvent read  FOnSslVerifyPeer
                                                            write FOnSslVerifyPeer;
         property  OnSslSetSessionIDContext : TSslSetSessionIDContext
@@ -1764,21 +1835,30 @@ type
         property  OnSslServerName    : TSslServerNameEvent
                                                            read  FOnSslServerName     // V8.09
                                                            write FOnSslServerName;
+        property  OnSslAlpnSelect : TSslAlpnSelect         read  FOnSslAlpnSelect
+                                                           write FOnSslAlpnSelect;     { V8.56 }
     end;
 
     TSslHttpServer = class(TCustomSslHttpServer)     //  V8.02 Angus
     published
-        property SslEnable;                
+        property SslEnable;
         property SslContext;
         property IcsHosts;                      { V8.45 }
         property RootCA;                        { V8.45 }
         property DHParams;                      { V8.45 }
+        property SslCliCertMethod;              { V8.57 }
+        property SslCertAutoOrder;              { V8.57 }
+        property CertExpireDays;                { V8.57 }
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+        property SslX509Certs;                  { V8.57 }
+{$ENDIF} // AUTO_X509_CERTS
         property OnSslVerifyPeer;
         property OnSslSetSessionIDContext;
         property OnSslSvrNewSession;
         property OnSslSvrGetSession;
         property OnSslHandshakeDone;
         property OnSslServerName;
+        property OnSslAlpnSelect;              { V8.56 } 
     end;
 
 {$ENDIF} // USE_SSL
@@ -2016,7 +2096,7 @@ begin
     FPort           := '80';
     FSocketFamily   := DefaultSocketFamily;        { V8.00 }
     FMaxClients     := 0;                {DAVID}
-    FListenBacklog  := 5; {Bjørnar}
+    FListenBacklog  := 15; {Bjørnar} { V8.57 was 5 }
     FDefaultDoc     := 'index.html';
     FDocDir         := 'c:\wwwroot';
     FTemplateDir    := 'c:\wwwroot\templates';
@@ -2162,7 +2242,7 @@ procedure THttpServer.Stop;
 begin
     if not Assigned(FWSocketServer) then
         Exit;
-    FWSocketServer.Close;
+    FWSocketServer.MultiClose;     { V8.60 close all hosts }
     { Disconnect all clients }
     FWSocketServer.DisconnectAll;
 {$IFNDEF NO_DEBUG_LOG}
@@ -2182,7 +2262,7 @@ begin
     { new port. Do not disconnect already connected clients.                }
     if Assigned(FWSocketServer) and
        (FWSocketServer.State = wsListening) then begin
-        FWSocketServer.Close;
+        FWSocketServer.MultiClose;     { V8.60 close all hosts }
         Start;
     end;
 end;
@@ -2198,7 +2278,7 @@ begin
     { new Addr. Do not disconnect already connected clients.                }
     if Assigned(FWSocketServer) and
        (FWSocketServer.State = wsListening) then begin
-        FWSocketServer.Close;
+        FWSocketServer.MultiClose;     { V8.60 close all hosts }
         Start;
     end;
 end;
@@ -3010,7 +3090,7 @@ begin
 {$IFDEF USE_NTLM_AUTH}
     else if AuthType = atNtlm then begin
         if not Assigned(FAuthNtlmSession) then begin
-           FAuthNtlmSession := TNtlmAuthSession.Create;
+           FAuthNtlmSession := TNtlmAuthSession.Create (cuInBound) ;
            FAuthNtlmSession.OnBeforeValidate := AuthNtlmSessionBeforeValidate;
         end;
         FAuthenticated := FAuthNtlmSession.ProcessNtlmMsg(Copy(FRequestAuth, 6, Length(FRequestAuth)));
@@ -4102,6 +4182,8 @@ begin
                     Self.FWellKnownPath := WellKnownPath;      { V8.49 }
                     Self.FWebRedirectURL := WebRedirectURL;    { V8.49 }
                     Self.FWebRedirectStat := WebRedirectStat;  { V8.50 }
+                    Self.FWebLogIdx := WebLogIdx;              { V8.60 }
+
                 end;
             end;
         end;
@@ -6398,7 +6480,8 @@ begin
     FWSocketServer.OnSslSvrGetSession       := TransferSslSvrGetSession;
     FWSocketServer.OnSslHandshakeDone       := TransferSslHandshakeDone;
     FWSocketServer.OnSslServerName          := TransferSslServerName;  // V8.09
-    fHttpSslEnable                          := TRUE;   // V8.02 Angus, renamed V8.50 
+    FWSocketServer.OnSslAlpnSelect          := TransferSslAlpnSelect;  { V8.56 }
+    fHttpSslEnable                          := TRUE;   // V8.02 Angus, renamed V8.50
 end;
 
 
@@ -6428,6 +6511,7 @@ begin
     THttpConnection(Client).OnSslSetSessionIDContext := TransferSslSetSessionIDContext;
     THttpConnection(Client).OnSslHandshakeDone       := TransferSslHandshakeDone;
     THttpConnection(Client).OnSslServerName          := TransferSslServerName; // V8.09 Angus
+    THttpConnection(Client).OnSslAlpnSelect          := TransferSslAlpnSelect;  { V8.56 }
     FWSocketServer.SslEnable                         := fHttpSslEnable;    // V8.02 Angus, renamed V8.50
     inherited WSocketServerClientCreate(Sender, Client);
 end;
@@ -6518,6 +6602,16 @@ begin
         FOnSslServerName(Sender, Ctx, ErrCode);
 end;
 
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TCustomSslHttpServer.TransferSslAlpnSelect(Sender: TObject;
+    ProtoList: TStrings; var SelProto : String; var ErrCode: TTlsExtError);  { V8.56 }
+begin
+    if Assigned(FOnSslAlpnSelect) then
+        FOnSslAlpnSelect(Sender, ProtoList, SelProto, ErrCode);
+end;
+
+
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure TCustomSslHttpServer.WSocketServerClientConnect(
     Sender  : TObject;
@@ -6572,7 +6666,6 @@ begin
 end;
 
 
-
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 function TCustomSslHttpServer.GetDHParams: String;                                { V8.45 }
 begin
@@ -6583,8 +6676,7 @@ begin
 end;
 
 
-
-{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+   {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure TCustomSslHttpServer.SetDHParams(const Value: String);                   { V8.45 }
 begin
     if Assigned(FWSocketServer) then
@@ -6592,8 +6684,7 @@ begin
 end;
 
 
-
-{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+   {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 function TCustomSslHttpServer.ValidateHosts(Stop1stErr: Boolean=True;
                                               NoExceptions: Boolean=False): String; { V8.48 }
 
@@ -6610,7 +6701,6 @@ begin
 end;
 
 
-
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 function TCustomSslHttpServer.RecheckSslCerts(var CertsInfo: String;
                     Stop1stErr: Boolean=True; NoExceptions: Boolean=False): Boolean;  { V8.48 }
@@ -6622,6 +6712,80 @@ begin
     end;
 end;
 
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function TCustomSslHttpServer.GetSslCliCertMethod: TSslCliCertMethod;             { V8.57 }
+begin
+    if Assigned(FWSocketServer) then
+        Result := TSslWSocketServer(FWSocketServer).SslCliCertMethod
+    else
+        Result := sslCliCertNone;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TCustomSslHttpServer.SetSslCliCertMethod(const Value : TSslCliCertMethod); { V8.57 }
+begin
+    if Assigned(FWSocketServer) then
+        TSslWSocketServer(FWSocketServer).SslCliCertMethod := Value;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function TCustomSslHttpServer.GetSslCertAutoOrder: Boolean;                       { V8.57 }
+begin
+    if Assigned(FWSocketServer) then
+        Result := TSslWSocketServer(FWSocketServer).SslCertAutoOrder
+    else
+        Result := False;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TCustomSslHttpServer.SetSslCertAutoOrder(const Value : Boolean);         { V8.57 }
+begin
+    if Assigned(FWSocketServer) then
+        TSslWSocketServer(FWSocketServer).SslCertAutoOrder := Value;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function TCustomSslHttpServer.GetCertExpireDays: Integer;                         { V8.57 }
+begin
+    if Assigned(FWSocketServer) then
+        Result := TSslWSocketServer(FWSocketServer).CertExpireDays
+    else
+        Result := 30;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TCustomSslHttpServer.SetCertExpireDays(const Value : Integer);           { V8.57 }
+begin
+    if Assigned(FWSocketServer) then
+        TSslWSocketServer(FWSocketServer).CertExpireDays := Value;
+end;
+
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+function TCustomSslHttpServer.GetSslX509Certs: TSslX509Certs;    { V8.57 }
+begin
+    if Assigned(FWSocketServer) then
+        Result := TSslWSocketServer(FWSocketServer).GetSslX509Certs as TSslX509Certs
+    else
+        Result := nil;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TCustomSslHttpServer.SetSslX509Certs(const Value : TSslX509Certs);    { V8.57 }
+begin
+    if Assigned(FWSocketServer) then
+        TSslWSocketServer(FWSocketServer).SetSslX509Certs(Value);
+end;
+{$ENDIF} // AUTO_X509_CERTS
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}

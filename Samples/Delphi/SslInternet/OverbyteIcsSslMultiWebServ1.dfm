@@ -1,7 +1,7 @@
 object WeblServerForm: TWeblServerForm
   Left = 339
   Top = 282
-  Caption = 'Web Application Server '
+  Caption = 'Web Application Server  - V8.61 4th April 2019 '
   ClientHeight = 437
   ClientWidth = 587
   Color = clBtnFace
@@ -112,7 +112,7 @@ object WeblServerForm: TWeblServerForm
     MaxBlkSize = 8192
     BandwidthLimit = 0
     BandwidthSampling = 1000
-    ServerHeader = 'Server: ICS-HttpServer-8.49'
+    ServerHeader = 'Server: ICS-HttpServer-8.57'
     OnServerStarted = SslHttpAppSrv1ServerStarted
     OnServerStopped = SslHttpAppSrv1ServerStopped
     OnClientConnect = SslHttpAppSrv1ClientConnect
@@ -144,8 +144,66 @@ object WeblServerForm: TWeblServerForm
     OnDisplay = SslHttpAppSrv1Display
     SslEnable = False
     IcsHosts = <>
+    SslCliCertMethod = sslCliCertNone
+    SslCertAutoOrder = False
+    CertExpireDays = 30
+    SslX509Certs = IcsSslX509Certs
     OnSslHandshakeDone = SslHttpAppSrv1SslHandshakeDone
     Left = 365
+    Top = 5
+  end
+  object IcsSslX509Certs: TSslX509Certs
+    AcmeAccKeyType = PrivKeyRsa2048
+    AutoOrderComplete = False
+    CertSubAltNames = <>
+    CertCsrOrigin = CsrOriginProps
+    CertOutFmts = []
+    CertSerNumType = SerNumRandom
+    CertSignDigestType = Digest_sha256
+    CertValidity = 365
+    DebugLevel = DebugConn
+    DomWebSrvIP = '0.0.0.0'
+    LogJson = False
+    LogPkeys = False
+    OAAuthType = OAuthTypeWeb
+    OARefreshAuto = False
+    OARefrMinsPrior = 120
+    OAWebSrvIP = '127.0.0.1'
+    OAWebSrvPort = '8080'
+    PrivKeyCipher = PrivKeyEncNone
+    PrivKeyType = PrivKeyRsa2048
+    SeqOrderNum = 0
+    SocketFamily = sfAny
+    SuppCertChallenge = ChallNone
+    SupplierProto = SuppProtoNone
+    OnCertProg = IcsSslX509CertsCertProg
+    OnNewCert = IcsSslX509CertsNewCert
+    OnOAuthAuthUrl = IcsSslX509CertsOAuthAuthUrl
+    OnChallengeDNS = IcsSslX509CertsChallengeDNS
+    Left = 545
+    Top = 5
+  end
+  object IcsMailQueue: TIcsMailQueue
+    MailServers = <>
+    Active = False
+    ArchiveSent = False
+    DeleteFailed = True
+    Debug = False
+    BodyDebug = False
+    RetryList = '5,5,10,10,30,30,60,90,300,300,300,300'
+    QuStartDelay = 3
+    SslVerMethod = MailSslVerNone
+    SslRevocation = False
+    SslReportChain = False
+    SslRootFile = 'RootCaCertsBundle.pem'
+    MailCliSecurity = sslCliSecTls11
+    SmtpMethod = MailSmtpRelay
+    FileQuSent = '"MailQuSent-"yyyymmdd".log'
+    LogQuSent = False
+    MxSrvUseSsl = False
+    MxSocketFamily = sfIPv4
+    LogEvent = IcsMailQueueLogEvent
+    Left = 295
     Top = 5
   end
 end

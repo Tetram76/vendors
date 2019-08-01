@@ -52,6 +52,8 @@ interface
 { *                                                       * }
 { * March 2015 - Angus improved SSL reporting             * }
 { *                                                       * }
+{ * April 2019 - Angus fixed authentication, added NoCahce * }
+{ *                                                       * }
 { ********************************************************* }
 
 uses
@@ -87,7 +89,8 @@ type
         FUsername        : String;
         FPassword        : String;
         FUserAgent       : String;
-        FBasicAuth       : Boolean;
+//        FBasicAuth       : Boolean;   ANGUS need to handle more types
+        FServerAuth      : THttpAuthType;  // ANGUS
         FContentTypePost : String;
         FSendStream      : TStream;
         FOwner           : TComponent;
@@ -141,7 +144,8 @@ type
         property Cookie : String read FCookie write FCookie; // ANGUS
         property OnCookie : TCookieRcvdEvent read FOnCookie write FOnCookie;
         // ANGUS
-        property BasicAuth : Boolean read FBasicAuth write FBasicAuth;
+//        property BasicAuth : Boolean read FBasicAuth write FBasicAuth;
+        property ServerAuth: THttpAuthType read FServerAuth write FServerAuth;  // ANGUS
         property ContentTypePost : String read FContentTypePost
             write FContentTypePost;
         property SendStream : TStream read FSendStream write FSendStream;
@@ -252,6 +256,7 @@ begin
     FReasonPhrase   := 'Can''t get file';
     FInputStreamOwn := False;
     FContentType    := HTMLType;
+    FServerAuth     := httpAuthNone;  // ANGUS
 end;
 
 destructor TURLConnection.Destroy;
@@ -420,10 +425,15 @@ begin
         HTTP.ProxyAuth := httpAuthBasic;
     HTTP.Username      := FUsername;
     HTTP.Password      := FPassword;
+    HTTP.ServerAuth    := httpAuthNone;
+    if (FUserName <> '') and (FPassword <> '') then begin  // ANGUS
+        HTTP.ServerAuth := FServerAuth;
+    end;
     HTTP.Agent         := FUserAgent;
     HTTP.Cookie        := FCookie;
     HTTP.Options       := HTTP.Options + [httpoEnableContentCoding];
     HTTP.LmCompatLevel := GLmCompatLevel; { AG }
+    HTTP.NoCache       := True;    { V8.61 }
 end;
 
 procedure THTTPConnection.GetPostFinal;
@@ -436,13 +446,16 @@ begin
     FContentLength      := HTTP.ContentLength;
     FResponseText       := HTTP.ReasonPhrase;
     FResponseCode       := HTTP.StatusCode;
+    FServerAuth := httpAuthNone;
     if HTTP.AuthorizationRequest.Count > 0 then { AG }
     begin
         { the 'realm' here is just used for user/password lookups }
         S := HTTP.AuthorizationRequest[0];
-        if StrIComp('NTLM', PChar(S)) = 0 then
+        if StrIComp('NTLM', PChar(S)) = 0 then begin
             { there is no realm in NTLM }
-            FRealm := 'NTLM @ ' + HTTP.Hostname
+            FRealm := 'NTLM @ ' + HTTP.Hostname;
+            FServerAuth := httpAuthNtlm;  // ANGUS keep auth type
+        end
         else begin
             if StrLIComp(PChar(S), 'BASIC REALM="', 13) = 0 then begin
                 I    := 14;
@@ -450,7 +463,7 @@ begin
                 while (I <= SLen) and (S[I] <> '"') do
                     Inc(I);
                 if S[I] = '"' then begin
-                    FBasicAuth := true;
+                    FServerAuth := httpAuthBasic;  // ANGUS keep auth type
                     FRealm     := Copy(S, 1, I) + ' @ ' + HTTP.Hostname;
                 end;
             end
@@ -460,8 +473,10 @@ begin
                     SLen := Length(S);
                     while (I <= SLen) and (S[I] <> '"') do
                         Inc(I);
-                    if S[I] = '"' then
+                    if S[I] = '"' then begin
+                        FServerAuth := httpAuthDigest;   // ANGUS keep auth type
                         FRealm := Copy(S, 1, I) + ' @ ' + HTTP.Hostname;
+                    end;
                 end;
             end;
         end;

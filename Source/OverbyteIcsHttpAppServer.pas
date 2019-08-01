@@ -4,11 +4,11 @@ Author:       François PIETTE
 Description:  THttpAppSrv is a specialized THttpServer component to ease
               his use for writing application servers.
 Creation:     Dec 20, 2003
-Version:      8.50
+Version:      8.59
 EMail:        francois.piette@overbyte.be         http://www.overbyte.be
 Support:      Use the mailing list twsocket@elists.org
               Follow "support" link at http://www.overbyte.be for subscription.
-Legal issues: Copyright (C) 2003-2017 by François PIETTE
+Legal issues: Copyright (C) 2003-2018 by François PIETTE
               Rue de Grady 24, 4053 Embourg, Belgium.
               <francois.piette@overbyte.be>
 
@@ -112,7 +112,47 @@ May 24, 2017 V8.48 Added HostTag parameter to AddGetHandler, AddPostHandler and
 May 30, 2017 V8.48 PostDispatchVirtualDocument was broken in last update
 Jul 5, 2017  V8.49 Start is now a function, see HttpSrv
 Aug 10, 2017 V8.50 Corrected onSslServerName to OnSslServerName to keep C++ happy
+Jul 6, 2018  V8.56 Added OnSslAlpnSelect called after OnSslServerName for HTTP/2.
+Oct 10, 2018 V8.57 INI file now reads Options as enumerated type literals,
+                     ie Options=[hoContentEncoding,hoAllowDirList,hoSendServerHdr,hoAllowPut]
+                   INI file reads SslCliCertMethod, SslCertAutoOrder, CertExpireDays.
+                   FSessionTimer is now TIcsTimer so Vcl.ExtCtrls can disappear
+Oct 19, 2018 V8.58 INI file reads ListenBacklog.
+Nov 19, 2018 V8.59 Sanity checks reading mistyped enumerated values from INI file.
 
+
+[WebAppServer]
+MaxClients=200
+MaxSessions=
+SessionTimeout=14400
+; CA root bundle to validate certificates and local chains
+RootCA=c:\certificates\RootCaCertsBundle.pem
+; needed for DH and DHE ciphers
+DHParams=c:\certificates\dhparams2048.pem
+; should maximum speed limit be imposed
+BandwidthLimitKB=0
+; how long idle clients should remain open
+KeepAliveTimeSec=60
+; how long active but stalled clients should remain open
+KeepAliveTimeXferSec=300
+; minimum and maxmum sized content to GZIP compress , no point in compressing
+;  small files, very large ones can take a long time and block server.
+SizeCompressMin=5000
+SizeCompressMax=5000000
+; Header items that should be included in any response header
+PersistentHeader=
+; multiple server Options: hoAllowDirList, hoAllowOutsideRoot, hoContentEncoding, hoAllowOptions,
+;   hoAllowPut, hoAllowDelete, hoAllowTrace, hoAllowPatch, hoAllowConnect, hoSendServerHdr, hoIgnoreIfModSince
+Options=[hoContentEncoding,hoSendServerHdr,hoAllowPut]
+; should browser send certificate: sslCliCertNone, sslCliCertOptional, sslCliCertRequire
+SslCliCertMethod=sslCliCertNone
+; should server automatically order and install SSL certificates, also needs CertSupplierProto specified
+; also needs a Certificate Supplier Account to be created first
+SslCertAutoOrder=True
+; how many days before expiry of SSL certificates should warnings and AutoOrder start
+CertExpireDays=30
+; how many new connections should be queued before rejecting new connections
+ListenBacklog=25
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *_*}
 {$IFNDEF ICS_INCLUDE_MODE}
@@ -153,12 +193,15 @@ uses
 {$IFDEF COMPILER7_UP}
     {$IFDEF RTL_NAMESPACES}System.StrUtils{$ELSE}StrUtils{$ENDIF},
 {$ENDIF}
+  OverbyteIcsSSLEAY, OverbyteIcsLIBEAY,
 {$IFDEF FMX}
     FMX.Types,
+    Ics.Fmx.OverbyteIcsWndControl,
     Ics.Fmx.OverbyteIcsWSocket,
     Ics.Fmx.OverbyteIcsHttpSrv,
 {$ELSE}
-    {$IFDEF RTL_NAMESPACES}Vcl.ExtCtrls{$ELSE}ExtCtrls{$ENDIF},
+//    {$IFDEF RTL_NAMESPACES}Vcl.ExtCtrls{$ELSE}ExtCtrls{$ENDIF},  { V8.57 }
+    OverbyteIcsWndControl,       { V8.57 }
     OverbyteIcsWSocket,
     OverbyteIcsHttpSrv,
 {$ENDIF}
@@ -193,7 +236,7 @@ type
         destructor Destroy; override;
         function   CreateSession(const Params : String;
                                  Expiration   : TDateTime;
-                                 SessionData  : TWebSessionData) : String;
+                                 SessionData  : TWebSessionData) : String; virtual;
         function   CancelSession : String; virtual;
         function   CheckSession(var Flags                : THttpGetFlag;
                                 const NegativeAnswerHtml : String) : Boolean; overload; virtual;
@@ -256,7 +299,7 @@ type
         procedure Display(const AMsg: String); virtual;
         function  CreateSession(const Params : String;
                                 Expiration   : TDateTime;
-                                SessionData  : TWebSessionData) : String;
+                                SessionData  : TWebSessionData) : String; virtual;
         function  ValidateSession: Boolean; virtual;
         procedure DeleteSession;
         function  CheckSession(const NegativeAnswerHtml : String) : Boolean; overload;
@@ -362,7 +405,7 @@ type
         FPostHandler     : THttpHandlerList;
         FGetAllowedPath  : THttpAllowedPath;
         FWSessions       : TWebSessions;
-        FSessionTimer    : TTimer;
+        FSessionTimer    : TIcsTimer;  { V8.57 }
         FMsg_WM_FINISH   : UINT;
         FHasAllocateHWnd : Boolean;
         FOnDeleteSession : TDeleteSessionEvent;
@@ -448,15 +491,22 @@ type
 {$IFDEF USE_SSL}
     TSslHttpAppSrv = class(THttpAppSrv)     //  V8.02 Angus
     published
-        property SslEnable;                  
+        property SslEnable;
         property SslContext;
-        property IcsHosts;                        { V8.45 }
+        property IcsHosts;                      { V8.45 }
+        property RootCA;                        { V8.45 }
+        property DHParams;                      { V8.45 }
+        property SslCliCertMethod;              { V8.57 }
+        property SslCertAutoOrder;              { V8.57 }
+        property CertExpireDays;                { V8.57 }
+        property SslX509Certs;                  { V8.57 }
         property OnSslVerifyPeer;
         property OnSslSetSessionIDContext;
         property OnSslSvrNewSession;
         property OnSslSvrGetSession;
         property OnSslHandshakeDone;
         property OnSslServerName;                 { V8.50 }
+        property OnSslAlpnSelect;                 { V8.56 }
     end;
 
 procedure IcsLoadTHttpAppSrvFromIni(MyIniFile: TCustomIniFile; HttpAppSrv:
@@ -512,7 +562,7 @@ begin
     FWSessions                 := TWebSessions.Create(nil);
     FWSessions.OnDeleteSession := DeleteSessionHandler;
     FClientClass               := THttpAppSrvConnection;
-    FSessionTimer              := TTimer.Create(nil);
+    FSessionTimer              := TIcsTimer.Create(Self);    { V8.57 }
     FSessionTimer.Enabled      := FALSE;
     FSessionTimer.OnTimer      := SessionTimerHandler;
 {$IFDEF USE_SSL}
@@ -1983,7 +2033,15 @@ begin
         DHParams := IcsTrim(MyIniFile.ReadString(Section, 'DHParams', ''));
         SessionTimeout := MyIniFile.ReadInteger(Section, 'SessionTimeout', SessionTimeout);
         MaxSessions := MyIniFile.ReadInteger(Section, 'MaxSessions', MaxSessions);
-     // pending - need clever way to read set of Options as text
+        SslCliCertMethod := TSslCliCertMethod(GetEnumValue (TypeInfo (TSslCliCertMethod),
+                        IcsTrim(MyIniFile.ReadString(section, 'SslCliCertMethod', 'sslCliCertNone'))));     { V8.57 }
+        if SslCliCertMethod > High(TSslCliCertMethod) then
+             SslCliCertMethod := sslCliCertNone;                                                            { V8.59 sanity test }
+        SslCertAutoOrder := IcsCheckTrueFalse(MyIniFile.ReadString (section, 'SslCertAutoOrder', 'False')); { V8.57 }
+        CertExpireDays := MyIniFile.ReadInteger(Section, 'CertExpireDays', CertExpireDays);                 { V8.57 }
+        IcsStrToSet(TypeInfo (THttpOption), MyIniFile.ReadString (section, 'Options', '[]'), FOptions, SizeOf(Options)); { V8.57 }
+     // ie Options=[hoContentEncoding,hoAllowDirList,hoSendServerHdr,hoAllowPut]
+        ListenBacklog := MyIniFile.ReadInteger(Section, 'ListenBacklog', ListenBacklog);  { V8.57 }
     end;
 end;
 {$ENDIF}

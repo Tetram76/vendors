@@ -5,11 +5,10 @@ Description:  Delphi encapsulation for SSLEAY32.DLL (OpenSSL)
               Renamed libssl32.dll for OpenSSL 1.1.0 and later
               This is only the subset needed by ICS.
 Creation:     Jan 12, 2003
-Version:      8.50
+Version:      8.62
 EMail:        francois.piette@overbyte.be  http://www.overbyte.be
-Support:      Use the mailing list ics-ssl@elists.org
-              Follow "SSL" link at http://www.overbyte.be for subscription.
-Legal issues: Copyright (C) 2003-2017 by François PIETTE
+Support:      https://en.delphipraxis.net/forum/37-ics-internet-component-suite/
+Legal issues: Copyright (C) 2003-2019 by François PIETTE
               Rue de Grady 24, 4053 Embourg, Belgium.
               <francois.piette@overbyte.be>
               SSL implementation includes code written by Arno Garrels,
@@ -113,7 +112,26 @@ Jan 27, 2017  V8.40 Added more functions to get and check context certs
               Added Security Level functions (1.1.0 and later)
 Feb 24, 2017  V8.41 Added more constants
 June 13, 2017 V8.49 Fixes to build on MacOs
-Sep 22, 2017  V8.50 Added more types 
+Sep 22, 2017  V8.50 Added more types
+Nov 22, 2017  V8.51 Testing OpenSSL 1.1.1 that adds TLS/1.3
+              Corrected various set options to be exports with 1.1.0 instead
+                of macros earlier, also SSL_session_reused
+              Added more constants and functions for 1.1.1, f_SSL_xx_groups
+Feb 27, 2018  V8.52 Added more EVP functions for keys, hashing and signing
+Jun 20, 2018  V8.55 Testing with OpenSSL 1.1.1 beta
+Oct 10, 2018  V8.57 added APLN APIs and literals
+                    Support OpenSSL 1.1.1 final with TLS/1.3
+                    Moved some SSL types and lits from Wsocket
+                    EVP_MAX_KEY_LENGTH now 64
+Oct 19, 2018  V8.58 version only
+Nov 27, 2018  V8.59 version only
+Mar 18, 2019  V8.60 Next major OpenSSL version is 3.0.0 (or maybe 4)
+                    Added sslSrvSecTls12Less and sslSrvSecTls13Only to disable
+                      in server IcsHosts if TLS1.3 fails.
+Jul 15, 2019  V8.62 Removed two ciphers from TSslPrivKeyCipher which we did not use.
+                    SuppProtoAcmeV1 gone, two more added. 
+                    Added ICS_NID_acmeIdentifier created dynamically on startup.
+
 
 
 Notes - OpenSSL ssleay32 changes between 1.0.2 and 1.1.0 - August 2016
@@ -142,6 +160,18 @@ SSLv23_method
 SSLv23_client_method
 SSLv23_server_method
 All version specific TLSv1_1x_methods deprecated so don't load them either
+
+Macros which are now new exported functions (not done until V8.51, sorry):
+SSL_CTX_get_options;
+SSL_get_options
+SSL_CTX_clear_options
+SSL_clear_options
+SSL_CTX_set_options
+SSL_set_options
+SSL_session_reused
+
+Notes - OpenSSL libssl-1_1 changes between 1.1.0 and 1.1.1 - November 2017
+
 
 
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
@@ -179,15 +209,16 @@ uses
     Posix.Errno,System.Types,   { V8.49 types needed for DWORD }
   {$ENDIF}
     {$IFDEF RTL_NAMESPACES}System.SysUtils{$ELSE}SysUtils{$ENDIF},
+    OverbyteIcsTypes,
     OverbyteIcsUtils;
 
 const
-    IcsSSLEAYVersion   = 850;
-    CopyRight : String = ' IcsSSLEAY (c) 2003-2017 F. Piette V8.50 ';
+    IcsSSLEAYVersion   = 862;
+    CopyRight : String = ' IcsSSLEAY (c) 2003-2019 F. Piette V8.62 ';
 
     EVP_MAX_IV_LENGTH                 = 16;       { 03/02/07 AG }
     EVP_MAX_BLOCK_LENGTH              = 32;       { 11/08/07 AG }
-    EVP_MAX_KEY_LENGTH                = 32;       { 11/08/07 AG }
+    EVP_MAX_KEY_LENGTH                = 64;       { 11/08/07 AG  { V8.52 was 32 }
 
 { const - why were these variables ever declared as const??? }
 { V8.27 consolidated from LIBEAY so all in one place }
@@ -244,36 +275,31 @@ var
     ICS_SSL_NO_RENEGOTIATION    : Boolean = FALSE;
     ICS_RAND_INIT_DONE          : Boolean = FALSE;   { V8.35 have we initialised random numbers }
 
+  { V8.62 dynamically added NID objects, if any set need call OBJ_cleanup on close down }
+    ICS_NID_acmeIdentifier      : Integer = 0;
+
+
 const
  { found in \include\openssl\opensslv.h }
-    //OSSL_VER_0906G = $0090607f; no longer supported
- {  OSSL_VER_0907G = $0090707f;
-    OSSL_VER_1000  = $10000000; // Untested, did not build with MinGW
-    OSSL_VER_1000D = $1000004f; // Might be still buggy, had to incl. one workaround so far, see TSslContext.InitContext
-    OSSL_VER_1000J = $100000af; // just briefly tested}
-
-{ only supporting versions with TLS 1.1 and 1.2 }
+{ only supporting versions with TLS 1.1, 1.2 and 1.3 }
+{ last digit is 0 for dev/beta, F for final release } 
 { V8.27 moved from OverbyteIcsLIBEAY  }
-    OSSL_VER_MIN   = $0000000F; // minimum version     { V8.35 }
-    OSSL_VER_1001  = $1000100F; // 1.0.1 untested
-    OSSL_VER_1001G = $1000107F; // just briefly tested  {
-    OSSL_VER_1001H = $1000108F; // just briefly tested
-    OSSL_VER_1001I = $1000109F; // just briefly tested
-    OSSL_VER_1001J = $100010AF; // untested
-    OSSL_VER_1001K = $100010BF; // just briefly tested
-    OSSL_VER_1001L = $100010CF; // untested
-    OSSL_VER_1002  = $10002000; // 1.0.2 just briefly tested
-    OSSL_VER_1002A = $1000201F; // just briefly tested
-    OSSL_VER_1002ZZ= $10002FFF; // not yet released
-    OSSL_VER_1100  = $1010000F; // 1.1.0                 { V8.32 }
-    OSSL_VER_1100A = $1010001F; // 1.1.0a                { V8.35 }
-    OSSL_VER_1100B = $1010002F; // 1.1.0b                { V8.35 }
-    OSSL_VER_1100C = $1010003F; // 1.1.0c                { V8.38 }
-    OSSL_VER_1100D = $1010004F; // 1.1.0d                { V8.41 }
-    OSSL_VER_1100ZZ= $10100FFF; // not yet released      { V8.35 }
-    OSSL_VER_1101  = $10101000; // 1.1.1 next feature release  { V8.34 }
-    OSSL_VER_1199  = $10101FFF; // not yet released      { V8.34 }
-    OSSL_VER_MAX   = $FFFFFFFF; // maximum version       { V8.35 }
+    OSSL_VER_MIN    = $0000000F; // minimum version     { V8.35 }
+    OSSL_VER_1002   = $10002000; // 1.0.2 just briefly tested
+    OSSL_VER_1002A  = $1000201F; // 1.0.2a just briefly tested
+    OSSL_VER_1002ZZ = $10002FFF; // 1.0.2zz not yet released
+    OSSL_VER_1100   = $1010000F; // 1.1.0 base final      { V8.32 }
+    OSSL_VER_1100A  = $1010001F; // 1.1.0a                { V8.35 }
+    OSSL_VER_1100B  = $1010002F; // 1.1.0b                { V8.35 }
+    OSSL_VER_1100C  = $1010003F; // 1.1.0c                { V8.38 }
+    OSSL_VER_1100D  = $1010004F; // 1.1.0d                { V8.41 }
+    OSSL_VER_1100ZZ = $10100FFF; // 1.1.0zz not yet released  { V8.35 }
+    OSSL_VER_1101   = $1010100F; // 1.1.1 base                { V8.57 }
+    OSSL_VER_1101A  = $1010101F; // 1.1.1a                    { V8.59 }
+    OSSL_VER_1101B  = $1010102F; // 1.1.1b                    { V8.59 }
+    OSSL_VER_1101ZZ = $10101FFF; // 1.1.1zz not yet released  { V8.57 }
+    OSSL_VER_30000  = $30000000; // 3.0.0 dev                 { V8.60 }
+    OSSL_VER_MAX    = $FFFFFFFF; // maximum version           { V8.35 }
 
     { Basically versions listed above are tested if not otherwise commented.  }
     { Versions between are assumed to work, however they are untested.        }
@@ -281,7 +307,7 @@ const
     { http://wiki.overbyte.be/wiki/index.php/ICS_Download                     }
 
     MIN_OSSL_VER   = OSSL_VER_1002;   { V8.39 minimum is now 1.0.2 }
-    MAX_OSSL_VER   = OSSL_VER_1100ZZ; { V8.35 1.1.0zz }
+    MAX_OSSL_VER   = OSSL_VER_1101ZZ; { V8.57 1.1.1zz }
 
     { V8.41 PEM base64 file titles }
     PEM_STRING_HDR_BEGIN   = '-----BEGIN ';    { six hyphens }
@@ -312,6 +338,27 @@ const
     PEM_STRING_ECPRIVATEKEY= 'EC PRIVATE KEY' ;
     PEM_STRING_PARAMETERS  = 'PARAMETERS' ;
     PEM_STRING_CMS         = 'CMS' ;
+
+{ V8.56 TLS Application-Layer Protocol Negotiation (ALPN) Protocol IDs }
+{ received from one client: h2,h2-14,h2-15,h2-16,h2-17,spdy/1,spdy/2,spdy/3,spdy/3.1,spdy/4,http/1.1,h2-fb,webrtc,c-webrtc,ftp }
+    ALPN_ID_HTTP10        = 'http/1.0';
+    ALPN_ID_HTTP11        = 'http/1.1';
+    ALPN_ID_HTTP2         = 'h2';
+    ALPN_ID_HTTP2S        = 'h2s';
+    ALPN_ID_HTTP214       = 'h2-14';   { and -15, -16, -17 }
+//    ALPN_ID_SPDY1         = 'spdy/1';
+//    ALPN_ID_SPDY2         = 'spdy/2';
+    ALPN_ID_SPDY3         = 'spdy/3';
+    ALPN_ID_SPDY31        = 'spdy/3.1';
+    ALPN_ID_TURN          = 'stun.turn';
+    ALPN_ID_STUN          = 'stun.nat-discovery';
+    ALPN_ID_WEBRTC        = 'webrtc';
+    ALPN_ID_CWEBRTC       = 'c-webrtc';
+    ALPN_ID_FTP           = 'ftp';
+    ALPN_ID_IMAP          = 'imap';
+    ALPN_ID_POP3          = 'pop3';
+    ALPN_ID_ACME_TLS1     = 'acme-tls/1';
+
 
 type
 
@@ -349,6 +396,7 @@ type
         Dummy : array [0..0] of Byte;
     end;
     PSSL            = ^TSSL_st;
+    PPSSL           = ^PSSL;    { V8.51 } 
 
     TSSL_SESSION_st = packed record
         Dummy : array [0..0] of Byte;
@@ -412,6 +460,23 @@ type
     PSTACK_OF = ^STACK_OF;
     PSTACK    = PSTACK_OF;   }
 
+    BN_ULONG = Cardinal;               { V8.03 }
+    PBN_ULONG = ^ BN_ULONG; 
+
+    TBIGNUM_st = packed record         { V8.03 }
+    //    Dummy : array [0..0] of Byte;
+        d: PBN_ULONG;                  { V8.52 need for array }
+        top: Integer;
+        dmax: Integer;
+        neg: Integer;
+        flags: Integer;
+    end;
+    PBIGNUM = ^TBIGNUM_st;
+    PPBIGNUM = ^PBIGNUM;                    { V8.52 }
+    TBIGNUMS = array [0..0] of TBIGNUM_st;  { V8.52 }
+    PBIGNUMS = ^TBIGNUMS;                   { V8.52 }
+    PPBIGNUMS = ^PBIGNUMS;                  { V8.52 }
+
     TSTACK_st = packed record               //AG
         Dummy : array [0..0] of Byte;
     end;
@@ -443,9 +508,16 @@ type
     PEC_METHOD = ^TEC_METHOD_st;
 
     TEC_POINT_st = packed record                  { V8.40 }
-        Dummy : array [0..0] of Byte;
+     //   Dummy : array [0..0] of Byte;
+        meth: PEC_METHOD;                  { V8.52 need full data for array }
+        X: PBIGNUM;
+        Y: PBIGNUM;
+        Z: PBIGNUM;
+        Z_is_one: Integer;
     end;
     PEC_POINT = ^TEC_POINT_st;
+    TEC_POINTS = array[0..0] of TEC_POINT_st;    { V8.52 }
+    PEC_POINTS = ^TEC_POINTS;                    { V8.52 }
 
     TEC_PKPARAMETERS_st = packed record           { V8.40 }
         Dummy : array [0..0] of Byte;
@@ -530,18 +602,43 @@ type
     end;
     PEVP_PKEY_CTX = ^TEVP_PKEY_CTX_st;
 
-    BN_ULONG = Cardinal;               { V8.03 }
-
-    TBIGNUM_st = packed record         { V8.03 }
-        Dummy : array [0..0] of Byte;
-    end;
-    PBIGNUM = ^TBIGNUM_st;
-
     TRSA_st = packed record
         Dummy : array [0..0] of Byte;      //AG
     end;
     PRSA = ^TRSA_st;
     PPRSA = ^PRSA;                        { V8.03 }
+
+    TCRYPTO_EX_DATA = record
+        sk: PSTACK;
+        dummy: Integer;
+    end;
+
+    TRSAreal = record                     { V8.52 only use for 1.0.2 }
+        pad: Integer;
+        version: LongWord;
+        meth: Pointer;
+        engine: Pointer;
+        n: PBIGNUM;
+        e: PBIGNUM;
+        d: PBIGNUM;
+        p: PBIGNUM;
+        q: PBIGNUM;
+        dmp1: PBIGNUM;
+        dmq1: PBIGNUM;
+        iqmp: PBIGNUM;
+     //   prime_infos: Pointer;  // added in 1.1.0?
+     //   pss: Pointer;          // added in 1.1.0?
+        ex_data: TCRYPTO_EX_DATA;
+        references: Integer;
+        flags: Integer;
+        _method_mod_n: Pointer;
+        _method_mod_p: Pointer;
+        _method_mod_q: Pointer;
+        bignum_data: PAnsiChar; // where are bignums are physically stored
+        blinding: Pointer;
+        mt_blinding: Pointer;
+    end;
+    PRSAreal = ^TRSAreal;
 
     TDSA_st = packed record                //AG
         Dummy : array [0..0] of Byte;
@@ -563,24 +660,6 @@ type
     { See helper functions Ics_Ssl_EVP_PKEYxxx in OverbyteIcsLibeay32  }
     TEVP_PKEY_st = packed record
         Dummy : array [0..0] of Byte;
-    (*
-        type_       : Longint;
-        save_type   : Longint;
-        references  : Longint;
-    {OSSL_100 two fields added}
-        ameth       : Pointer; //PEVP_PKEY_ASN1_METHOD;
-        engine      : Pointer; //PENGINE;
-    {/OSSL_100}
-        case Integer of
-        0 : (ptr  : PAnsiChar);
-        1 : (rsa  : PRSA); // RSA
-        2 : (dsa  : PDSA); // DSA
-        3 : (dh   : PDH);  // DH
-        4 : (ec   : PEC_KEY); //* ECC */
-        { more not needed ...
-        int save_parameters;
-        STACK_OF(X509_ATTRIBUTE) *attributes; /* [ 0 ] */ }
-    *)
     end;
     PEVP_PKEY = ^TEVP_PKEY_st;
     PPEVP_PKEY = ^PEVP_PKEY;
@@ -1081,6 +1160,18 @@ type
     end;
     PX509V3_EXT_METHOD = ^TX509V3_EXT_METHOD;
 
+    TPoint_Conversion_Form_t = byte;             { V8.52 }
+       { the point is encoded as z||x, where the octet z specifies
+         *  which solution of the quadratic equation y is  }
+const
+    POINT_CONVERSION_COMPRESSED = 2;
+        { the point is encoded as z||x||y, where z is the octet 0x04  }
+    POINT_CONVERSION_UNCOMPRESSED = 4;
+        { the point is encoded as z||x||y, where the octet z specifies
+           which solution of the quadratic equation y is  }
+    POINT_CONVERSION_HYBRID = 6;
+
+type 
   { V8.27  The valid handshake states (one for each type message sent and one for each
            type of message received). There are also two "special" states:
      TLS = TLS or DTLS state
@@ -1128,17 +1219,22 @@ type
         TLS_ST_SW_Session_Ticket,
         TLS_ST_SW_Cert_Status,
         TLS_ST_SW_Change,
-        TLS_ST_SW_Finished);
-
-const
- { V8.27 values for handshake SSL_state up to 1.1.0, no longer used }
-    SSL_ST_CONNECT                              = $1000;
-    SSL_ST_ACCEPT                               = $2000;
-    SSL_ST_MASK                                 = $0FFF;
-    SSL_ST_INIT                                 = (SSL_ST_CONNECT or SSL_ST_ACCEPT);
-    SSL_ST_BEFORE                               = $4000;
-    SSL_ST_OK                                   = $03;
-    SSL_ST_RENEGOTIATE                          = ($04 or SSL_ST_INIT);
+        TLS_ST_SW_Finished,
+        TLS_ST_SW_Encrypted_Extensions,  { V8.51 lots more for TLS/1.3 }
+        TLS_ST_CR_Encrypted_Extensions,
+        TLS_ST_CR_Cert_Vrfy,
+        TLS_ST_SW_Cert_Vrfy,
+        TLS_ST_CR_Hello_Req,
+        TLS_ST_SW_Hello_Retry_Request,
+        TLS_ST_CR_Hello_Retry_Request,
+        TLS_ST_SW_Key_Update,
+        TLS_ST_CW_Key_Update,
+        TLS_ST_SR_Key_Update,
+        TLS_ST_CR_Key_Update,
+        TLS_ST_Early_Data,
+        TLS_ST_Pending_Early_Data_End,
+        TLS_ST_CW_End_Of_Early_Data,
+        TLS_ST_SR_End_Of_Early_Data) ;
 
 type
     TPem_password_cb = function(Buf      : PAnsiChar;
@@ -1167,7 +1263,11 @@ type
     TProto_msg_cb = function (write_p, version, content_type: integer;
               buf: PAnsiChar; size_t: integer; ssl: PSSL; arg: Pointer): Integer; cdecl;   { V8.40 handshake protocol message callback }
 
-    TSecurity_level_cb = function  (s: PSSL; ctx: PSSL_CTX; op, bits, nid: integer; other, ex: Pointer): Integer; cdecl;  { V8.40 security level callback }
+    TSecurity_level_cb = function  (s: PSSL; ctx: PSSL_CTX; op, bits,
+              nid: integer; other, ex: Pointer): Integer; cdecl;  { V8.40 security level callback }
+
+    TSsl_alpn_cb = function (s: PSSL; var output: Pointer; var outlen: Integer;
+              input: Pointer; inlen: Integer; arg: Pointer): Integer; cdecl;  { V8.56 application layer protocol callback }
 
 const
     SSL2_VERSION                                = $0002;
@@ -1194,7 +1294,7 @@ const
     TLS1_3_VERSION_MAJOR                        = $03;    // V8.40
     TLS1_3_VERSION_MINOR                        = $04;    // V8.40
 
-    TLS_MAX_VERSION                             = TLS1_2_VERSION;  // V8.27
+    TLS_MAX_VERSION                             = TLS1_3_VERSION;  // V8.51
     TLS_ANY_VERSION                             = $10000;          // V8.27
 
 {$IFNDEF NO_DEBUG_LOG}
@@ -1205,7 +1305,14 @@ type
         L: integer;
     end ;
 
-const        
+const
+{ V8.51 following for rotoMsgCallback }
+    SSL3_RT_CHANGE_CIPHER_SPEC     = 20;
+    SSL3_RT_ALERT                  = 21;
+    SSL3_RT_HANDSHAKE              = 22;
+    SSL3_RT_APPLICATION_DATA       = 23;
+    DTLS1_RT_HEARTBEAT             = 24;
+
     LitsSslVersions:  array[0..4] of TLitLookups = (
         (S: 'SSL 3.0'; L: SSL3_VERSION),
         (S: 'TLS 1.0'; L: TLS1_VERSION),
@@ -1214,7 +1321,7 @@ const
         (S: 'TLS 1.3'; L: TLS1_3_VERSION) );
 
 
-    LitsAlertTypes:  array[0..28] of TLitLookups = (
+    LitsAlertTypes:  array[0..31] of TLitLookups = (
         (S: 'Close Notify'; L:  0),
         (S: 'Unexpected Message'; L:  10),
         (S: 'Bad Record Mac'; L:  20),
@@ -1236,31 +1343,60 @@ const
         (S: 'Protocol Version'; L:  70),
         (S: 'Insufficient Security'; L:  71),
         (S: 'Internal Error'; L:  80),
+        (S: 'Inappropriate Fallback'; L:  86),    { V8.51 }
         (S: 'User Cancelled'; L:  90),
         (S: 'No Renegotiation'; L:  100),
+        (S: 'Missing Extension'; L:  109),         { V8.51 }
         (S: 'Unsupported Extension'; L:  110),
         (S: 'Certificate Unobtainable'; L:  111),
         (S: 'Unrecognized Name'; L:  112),
         (S: 'Bad Certificate Status Response'; L:  113),
         (S: 'Bad Certificate Hash Value'; L:  114),
-        (S: 'Unknown PSK Identity'; L:  115) ) ;
+        (S: 'Unknown PSK Identity'; L:  115),
+        (S: 'Certificate required'; L:  116) ) ;   { V8.51 }
 
-    LitsHandshake:  array[0..14] of TLitLookups = (
-        (S: 'Hello Request'; L:  0),
-        (S: 'Client Hello'; L:  1),
-        (S: 'Server Hello'; L:  2),
+    SSL3_MT_HELLO_REQUEST                 = 0;
+    SSL3_MT_CLIENT_HELLO                  = 1;
+    SSL3_MT_SERVER_HELLO                  = 2;
+    SSL3_MT_NEWSESSION_TICKET             = 4;
+    SSL3_MT_END_OF_EARLY_DATA             = 5;
+    SSL3_MT_HELLO_RETRY_REQUEST           = 6;
+    SSL3_MT_ENCRYPTED_EXTENSIONS          = 8;
+    SSL3_MT_CERTIFICATE                   = 11;
+    SSL3_MT_SERVER_KEY_EXCHANGE           = 12;
+    SSL3_MT_CERTIFICATE_REQUEST           = 13;
+    SSL3_MT_SERVER_DONE                   = 14;
+    SSL3_MT_CERTIFICATE_VERIFY            = 15;
+    SSL3_MT_CLIENT_KEY_EXCHANGE           = 16;
+    SSL3_MT_FINISHED                      = 20;
+    SSL3_MT_CERTIFICATE_STATUS            = 22;
+    SSL3_MT_KEY_UPDATE                    = 24;
+    SSL3_MT_NEXT_PROTO                    = 67;
+    SSL3_MT_MESSAGE_HASH                  = 254;
+    DTLS1_MT_HELLO_VERIFY_REQUEST         = 3;
+
+    LitsHandshake:  array[0..20] of TLitLookups = (
+        (S: 'Hello Request'; L:  SSL3_MT_HELLO_REQUEST),
+        (S: 'Client Hello'; L:  SSL3_MT_CLIENT_HELLO),
+        (S: 'Server Hello'; L:  SSL3_MT_SERVER_HELLO),
         (S: 'Hello Verify Request'; L:  3),
-        (S: 'New Session Ticket'; L:  4),
-        (S: 'Certificate'; L:  11),
-        (S: 'Server Key Exchange'; L:  12),
-        (S: 'Certificate Request'; L:  13),
-        (S: 'Server Hello Done'; L:  14),
-        (S: 'Certificate Verify'; L:  15),
-        (S: 'Client Key Exchange'; L:  16),
-        (S: 'Finished'; L:  20),
+        (S: 'New Session Ticket'; L:  SSL3_MT_NEWSESSION_TICKET),
+        (S: 'End of early data'; L:  SSL3_MT_END_OF_EARLY_DATA),       { V8.51 }
+        (S: 'Hello retry request'; L:SSL3_MT_HELLO_RETRY_REQUEST),     { V8.51 }
+        (S: 'Encrypted extensions'; L:SSL3_MT_ENCRYPTED_EXTENSIONS),   { V8.51 }
+        (S: 'Certificate'; L:  SSL3_MT_CERTIFICATE),
+        (S: 'Server Key Exchange'; L:  SSL3_MT_SERVER_KEY_EXCHANGE),
+        (S: 'Certificate Request'; L:  SSL3_MT_CERTIFICATE_REQUEST),
+        (S: 'Server Hello Done'; L:  SSL3_MT_SERVER_DONE),
+        (S: 'Certificate Verify'; L:  SSL3_MT_CERTIFICATE_VERIFY),
+        (S: 'Client Key Exchange'; L:  SSL3_MT_CLIENT_KEY_EXCHANGE),
+        (S: 'Finished'; L:  SSL3_MT_FINISHED),
         (S: 'Certificate URL'; L:  21),
-        (S: 'Certificate Status'; L:  22),
-        (S: 'Supplemental Data'; L:  23) ) ;
+        (S: 'Certificate Status'; L:  SSL3_MT_CERTIFICATE_STATUS),
+        (S: 'Supplemental Data'; L:  23) ,
+        (S: 'Key update'; L:SSL3_MT_KEY_UPDATE),                { V8.51 }
+        (S: 'Next Proto'; L:SSL3_MT_NEXT_PROTO),                { V8.51 }
+        (S: 'Message Hash'; L:SSL3_MT_MESSAGE_HASH) ) ;         { V8.51 }
 
 {$ENDIF}
 
@@ -1279,6 +1415,9 @@ const
     SSL_ERROR_ZERO_RETURN                       = 6;
     SSL_ERROR_WANT_CONNECT                      = 7;
     SSL_ERROR_WANT_ACCEPT                       = 8;
+    SSL_ERROR_WANT_ASYNC                        = 9;  { V8.51 following new }
+    SSL_ERROR_WANT_ASYNC_JOB                    = 10;
+    SSL_ERROR_WANT_CLIENT_HELLO_CB              = 11;
 
     X509_FILETYPE_PEM                           = 1;
     X509_FILETYPE_ASN1                          = 2;
@@ -1286,6 +1425,7 @@ const
 
     X509_EXT_PACK_UNKNOWN                       = 1;
     X509_EXT_PACK_STRING                        = 2;
+
     SSL_FILETYPE_ASN1                           = X509_FILETYPE_ASN1;
     SSL_FILETYPE_PEM                            = X509_FILETYPE_PEM;
     SSL_VERIFY_NONE                             = 0;
@@ -1306,14 +1446,15 @@ const
     SSL_BUILD_CHAIN_FLAG_CLEAR_ERROR            = $00000010;
 
     { Removed 12/07/05 - due to changes in v0.9.8a - restored and corrected V8.01 }
-    SSL_CTRL_NEED_TMP_RSA                       = 1;
-    SSL_CTRL_SET_TMP_RSA                        = 2;
+ { V8.51 pending, remove some of these once support for 1.0.2 is abandoned }
+//  SSL_CTRL_NEED_TMP_RSA                       = 1;     // V8.51 gone in 1.1.0
+//  SSL_CTRL_SET_TMP_RSA                        = 2;     // V8.51 gone in 1.1.0
     SSL_CTRL_SET_TMP_DH                         = 3;
     SSL_CTRL_SET_TMP_ECDH                       = 4;
-    SSL_CTRL_SET_TMP_RSA_CB                     = 5;
+//  SSL_CTRL_SET_TMP_RSA_CB                     = 5;     // V8.51 gone in 1.1.0
     SSL_CTRL_SET_TMP_DH_CB                      = 6;
-    SSL_CTRL_SET_TMP_ECDH_CB                    = 7;
-    SSL_CTRL_GET_SESSION_REUSED                 = 8;
+//  SSL_CTRL_SET_TMP_ECDH_CB                    = 7;     // V8.51 gone in 1.1.0
+    SSL_CTRL_GET_SESSION_REUSED                 = 8;     // V8.51 gone in 1.1.0
     SSL_CTRL_GET_CLIENT_CERT_REQUEST            = 9;
     SSL_CTRL_GET_NUM_RENEGOTIATIONS             = 10;
     SSL_CTRL_CLEAR_NUM_RENEGOTIATIONS           = 11;
@@ -1323,12 +1464,6 @@ const
     SSL_CTRL_SET_MSG_CALLBACK                   = 15;
     SSL_CTRL_SET_MSG_CALLBACK_ARG               = 16;
     SSL_CTRL_SET_MTU                            = 17; // only applies to datagram connections
-
-    { These constants will be set dynamically in IcsLibeay.Load() } //12/07/05 added   V8.01 not needed
-//    SSL_CTRL_EXTRA_CHAIN_CERT    : Integer = 12; // v.0.9.7 - Ssl.h SSL_CTRL_EXTRA_CHAIN_CERT;
-//    SSL_CTRL_GET_SESSION_REUSED  : Integer = 6; // v.0.9.7  - Ssl.h SSL_CTRL_GET_SESSION_REUSED
-
-    // stats
     SSL_CTRL_SESS_NUMBER                        = 20;
     SSL_CTRL_SESS_CONNECT                       = 21;
     SSL_CTRL_SESS_CONNECT_GOOD                  = 22;
@@ -1341,7 +1476,7 @@ const
     SSL_CTRL_SESS_MISSES                        = 29;
     SSL_CTRL_SESS_TIMEOUTS                      = 30;
     SSL_CTRL_SESS_CACHE_FULL                    = 31;
-    SSL_CTRL_OPTIONS                            = 32;
+    SSL_CTRL_OPTIONS                            = 32;     // V8.51 gone in 1.1.0
     SSL_CTRL_MODE                               = 33;
     SSL_CTRL_GET_READ_AHEAD                     = 40;
     SSL_CTRL_SET_READ_AHEAD                     = 41;
@@ -1352,19 +1487,54 @@ const
     SSL_CTRL_GET_MAX_CERT_LIST                  = 50;   // V8.01
     SSL_CTRL_SET_MAX_CERT_LIST                  = 51;   // V8.01
     SSL_CTRL_SET_MAX_SEND_FRAGMENT              = 52;   // V8.01
- { TLSXEXT stuff later }
+    SSL_CTRL_SET_TLSEXT_SERVERNAME_CB           = 53;
+    SSL_CTRL_SET_TLSEXT_SERVERNAME_ARG          = 54;
+    SSL_CTRL_SET_TLSEXT_HOSTNAME                = 55;
+    SSL_CTRL_SET_TLSEXT_DEBUG_CB                = 56;
+    SSL_CTRL_SET_TLSEXT_DEBUG_ARG               = 57;
+    SSL_CTRL_GET_TLSEXT_TICKET_KEYS             = 58;   // V8.01
+    SSL_CTRL_SET_TLSEXT_TICKET_KEYS             = 59;   // V8.01
+//  SSL_CTRL_SET_TLSEXT_OPAQUE_PRF_INPUT        = 60;   // V8.01   // V8.51 gone in 1.1.0
+//  SSL_CTRL_SET_TLSEXT_OPAQUE_PRF_INPUT_CB     = 61;   // V8.01   // V8.51 gone in 1.1.0
+//  SSL_CTRL_SET_TLSEXT_OPAQUE_PRF_INPUT_CB_ARG   = 62;   // V8.01 // V8.51 gone in 1.1.0
+    SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB           = 63;   // V8.01
+    SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB_ARG       = 64;   // V8.01
+    SSL_CTRL_SET_TLSEXT_STATUS_REQ_TYPE         = 65;   // V8.01
+    SSL_CTRL_GET_TLSEXT_STATUS_REQ_EXTS         = 66;   // V8.01
+    SSL_CTRL_SET_TLSEXT_STATUS_REQ_EXTS         = 67;   // V8.01
+    SSL_CTRL_GET_TLSEXT_STATUS_REQ_IDS          = 68;   // V8.01
+    SSL_CTRL_SET_TLSEXT_STATUS_REQ_IDS          = 69;   // V8.01
+    SSL_CTRL_GET_TLSEXT_STATUS_REQ_OCSP_RESP    = 70;   // V8.01
+    SSL_CTRL_SET_TLSEXT_STATUS_REQ_OCSP_RESP    = 71;   // V8.01
+    SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB           = 72;   // V8.01
+    DTLS_CTRL_GET_TIMEOUT                       = 73;   // V8.51
+    DTLS_CTRL_HANDLE_TIMEOUT                    = 74;   // V8.51
+    SSL_CTRL_SET_TLS_EXT_SRP_USERNAME_CB        = 75;   // V8.01
+    SSL_CTRL_SET_SRP_VERIFY_PARAM_CB            = 76;   // V8.01
     SSL_CTRL_GET_RI_SUPPORT                     = 76; { 0.9.8n }
-    SSL_CTRL_CLEAR_OPTIONS                      = 77; { 0.9.8n }
+    SSL_CTRL_CLEAR_OPTIONS                      = 77;   //  0.9.8n - V8.51 gone in 1.1.0
     SSL_CTRL_CLEAR_MODE                         = 78;   // V8.01
+    SSL_CTRL_SET_SRP_GIVE_CLIENT_PWD_CB         = 77;   // V8.01
+    SSL_CTRL_SET_SRP_ARG                        = 78;   // V8.01
+    SSL_CTRL_SET_TLS_EXT_SRP_USERNAME           = 79;   // V8.01
+    SSL_CTRL_SET_TLS_EXT_SRP_STRENGTH           = 80;   // V8.01
+    SSL_CTRL_SET_TLS_EXT_SRP_PASSWORD           = 81;   // V8.01
+    SSL_CTRL_TLS_EXT_SEND_HEARTBEAT             = 85;   // V8.01
+    SSL_CTRL_GET_TLS_EXT_HEARTBEAT_PENDING      = 86;   // V8.01
+    SSL_CTRL_SET_TLS_EXT_HEARTBEAT_NO_REQUESTS  = 87;   // V8.01
     SSL_CTRL_GET_EXTRA_CHAIN_CERTS              = 82;   // V8.01
     SSL_CTRL_CLEAR_EXTRA_CHAIN_CERTS            = 83;   // V8.01
     SSL_CTRL_CHAIN                              = 88;   // V8.01
     SSL_CTRL_CHAIN_CERT                         = 89;   // V8.01
-    SSL_CTRL_GET_CURVES                         = 90;   // V8.01
+    SSL_CTRL_GET_CURVES                         = 90;   // V8.01  V8.51 curves now named groups for 1.1.1
     SSL_CTRL_SET_CURVES                         = 91;   // V8.01
     SSL_CTRL_SET_CURVES_LIST                    = 92;   // V8.01
     SSL_CTRL_GET_SHARED_CURVE                   = 93;   // V8.01
-    SSL_CTRL_SET_ECDH_AUTO                      = 94;   // V8.01
+    SSL_CTRL_GET_GROUPS                         = 90;   // V8.51
+    SSL_CTRL_SET_GROUPS                         = 91;   // V8.51
+    SSL_CTRL_SET_GROUPS_LIST                    = 92;   // V8.51
+    SSL_CTRL_GET_SHARED_GROUP                   = 93;   // V8.51
+    SSL_CTRL_SET_ECDH_AUTO                      = 94;   // V8.01  // V8.51 gone in 1.1.0
     SSL_CTRL_SET_SIGALGS                        = 97;   // V8.01
     SSL_CTRL_SET_SIGALGS_LIST                   = 98;   // V8.01
     SSL_CTRL_CERT_FLAGS                         = 99;   // V8.01
@@ -1392,35 +1562,40 @@ const
     SSL_CTRL_SET_MAX_PROTO_VERSION              = 124;   // V8.27
     SSL_CTRL_SET_SPLIT_SEND_FRAGMENT            = 125;   // V8.27
     SSL_CTRL_SET_MAX_PIPELINES                  = 126;   // V8.27
+    SSL_CTRL_GET_TLSEXT_STATUS_REQ_TYPE         = 127;   // V8.51
+    SSL_CTRL_GET_TLSEXT_STATUS_REQ_CB           = 128;   // V8.51
+    SSL_CTRL_GET_TLSEXT_STATUS_REQ_CB_ARG       = 129;   // V8.51
+    SSL_CTRL_GET_MIN_PROTO_VERSION              = 130;   // V8.51 1.1.1
+    SSL_CTRL_GET_MAX_PROTO_VERSION              = 131;   // V8.51 1.1.1
 
     SSL_CERT_SET_FIRST                          = 1;   // V8.27
     SSL_CERT_SET_NEXT                           = 2;   // V8.27
     SSL_CERT_SET_SERVER                         = 3;   // V8.27
 
-    SSL_OP_MICROSOFT_SESS_ID_BUG                = $00000001;
-    SSL_OP_NETSCAPE_CHALLENGE_BUG               = $00000002;
-    SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG     = $00000008;
+    SSL_OP_MICROSOFT_SESS_ID_BUG                = $00000001;   // gone V8.51
+    SSL_OP_NETSCAPE_CHALLENGE_BUG               = $00000002;   // gone V8.51
+
+  // Allow initial connection to servers that don't support RI
+    SSL_OP_LEGACY_SERVER_CONNECT                = $00000004;   // new V8.51
+    SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG     = $00000008;   // gone V8.51
     SSL_OP_TLSEXT_PADDING                       = $00000010;   // V8.01
     SSL_OP_SSLREF2_REUSE_CERT_TYPE_BUG          = $00000000;   // gone V8.01
-    SSL_OP_MICROSOFT_BIG_SSLV3_BUFFER           = $00000020;
+    SSL_OP_MICROSOFT_BIG_SSLV3_BUFFER           = $00000020;   // gone V8.51
     SSL_OP_SAFARI_ECDHE_ECDSA_BUG               = $00000040;   // V8.01
     SSL_OP_MSIE_SSLV2_RSA_PADDING               = $00000000;   //gone V8.01
-    SSL_OP_SSLEAY_080_CLIENT_DH_BUG             = $00000080;
-    SSL_OP_TLS_D5_BUG                           = $00000100;
-    SSL_OP_TLS_BLOCK_PADDING_BUG                = $00000200;
+    SSL_OP_SSLEAY_080_CLIENT_DH_BUG             = $00000080;   // gone V8.51
+    SSL_OP_TLS_D5_BUG                           = $00000100;   // gone V8.51
+    SSL_OP_TLS_BLOCK_PADDING_BUG                = $00000200;   // gone V8.51
+
+  // In TLSv1.3 allow a non-(ec)dhe based kex_mode
+    SSL_OP_ALLOW_NO_DHE_KEX                     = $00000400;   // new V8.51
 
     // Disable SSL 3.0/TLS 1.0 CBC vulnerability workaround that was added
     // in OpenSSL 0.9.6d.  Usually (depending on the application protocol)
     // the workaround is not needed.  Unfortunately some broken SSL/TLS
     //implementations cannot handle it at all, which is why we include
     //it in SSL_OP_ALL.
-
     SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS          = $00000800;
-    //SSL_OP_ALL: various bug workarounds that should be rather harmless.
-    //This used to be 0x000FFFFFL before 0.9.7.
-    // 0.9.8h, 0.9.8n, 0.9.8e, 0.9.7g $00000FFF
-    SSL_OP_ALL                                  = $00000BFF;    // V8.01
-    //SSL_OP_ALL                                  = $80000FFF; 1.0.0d
 
     //* DTLS options */ since 0.9.8
     SSL_OP_NO_QUERY_MTU                         = $00001000;
@@ -1445,14 +1620,17 @@ const
     SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION    = $00040000;
 
     // If set, always create a new key when using tmp_ecdh parameters
-    SSL_OP_SINGLE_ECDH_USE                       = $00080000;  // V8.02
+    SSL_OP_SINGLE_ECDH_USE                       = $00080000;  // V8.02 gone V8.51
 
-    // If set, always create a new key when using tmp_ecdh parameters
-    SSL_OP_SINGLE_DH_USE                        = $00100000;
+  // Disable encrypt-then-mac
+    SSL_OP_NO_ENCRYPT_THEN_MAC                   = $00080000;   // new V8.51
+
+ // If set, always create a new key when using tmp_ecdh parameters
+    SSL_OP_SINGLE_DH_USE                        = $00100000;    // gone V8.51
 
    // Set to always use the tmp_rsa key when doing RSA operations,
    // even when this violates protocol specs
-    SSL_OP_EPHEMERAL_RSA                        = $00200000;
+    SSL_OP_EPHEMERAL_RSA                        = $00200000;     // gone V8.51
 
     // Set on servers to choose the cipher according to the server's
     // preferences */
@@ -1464,11 +1642,13 @@ const
     // forbidden to prevent version rollback attacks.
     SSL_OP_TLS_ROLLBACK_BUG                     = $00800000;
 
+   //  following lot deprecated for 1.1.0 and later, use min/max[proto instead
     SSL_OP_NO_SSLv2                             = $01000000;
     SSL_OP_NO_SSLv3                             = $02000000;
     SSL_OP_NO_TLSv1                             = $04000000;
     SSL_OP_NO_TLSv1_2                           = $08000000;     // V8.01
     SSL_OP_NO_TLSv1_1                           = $10000000;     // V8.01
+    SSL_OP_NO_TLSv1_3                           = $20000000;     // new V8.51
 
 // These next two were never actually used for anything since SSLeay
 // zap so we have some more flags.
@@ -1477,14 +1657,51 @@ const
 
     SSL_OP_NETSCAPE_CA_DN_BUG                   = $20000000;
 
-    SSL_OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG      = $40000000;
+    SSL_OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG      = $40000000;    // gone V8.51
+
+  // Disallow all renegotiation */
+    SSL_OP_NO_RENEGOTIATION                     = $40000000;    // new V8.51
+
     // Make server add server-hello extension from early version of
     // cryptopro draft, when GOST ciphersuite is negotiated.
     // Required for interoperability with CryptoPro CSP 3.x
     SSL_OP_CRYPTOPRO_TLSEXT_BUG                 = $80000000; // 1.0.0x
 
+    //SSL_OP_ALL: various bug workarounds that should be rather harmless.
+    SSL_OP_ALL                                  = { $00000BFF; }   // V8.01
+       (SSL_OP_CRYPTOPRO_TLSEXT_BUG OR SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS OR
+        SSL_OP_LEGACY_SERVER_CONNECT OR SSL_OP_TLSEXT_PADDING OR SSL_OP_SAFARI_ECDHE_ECDSA_BUG);   // V8.51
+    //SSL_OP_ALL                                  = $80000FFF; 1.0.0d
 
+
+// Allow SSL_write(..., n) to return r with 0 < r < n (i.e. report success
+// when just a single record has been written):
     SSL_MODE_ENABLE_PARTIAL_WRITE               = $00000001;
+// Make it possible to retry SSL_write() with changed buffer location (buffer
+// contents must stay the same!); this is not the default to avoid the
+// misconception that non-blocking SSL_write() behaves like non-blocking write():
+    SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER         = $00000002;  { V8.51 following modes added } 
+// Never bother the application with retries if the transport is blocking:
+    SSL_MODE_AUTO_RETRY                         = $00000004;
+// Don't attempt to automatically build certificate chain
+    SSL_MODE_NO_AUTO_CHAIN                      = $00000008;
+// Save RAM by releasing read and write buffers when they're empty. (SSL3 and
+// TLS only.) Released buffers are freed.
+    SSL_MODE_RELEASE_BUFFERS                    = $00000010;
+// Send the current time in the Random fields of the ClientHello and
+// ServerHello records for compatibility with hypothetical implementations
+// that require it.
+    SSL_MODE_SEND_CLIENTHELLO_TIME             = $00000020;
+    SSL_MODE_SEND_SERVERHELLO_TIME             = $00000040;
+// Send TLS_FALLBACK_SCSV in the ClientHello. To be set only by applications
+// that reconnect with a downgraded protocol version; see
+// draft-ietf-tls-downgrade-scsv-00 for details. DO NOT ENABLE THIS if your
+// application attempts a normal handshake. Only use this in explicit
+// fallback retries, following the guidance in
+// draft-ietf-tls-downgrade-scsv-00.
+    SSL_MODE_SEND_FALLBACK_SCSV                = $00000080;
+// Support Asynchronous operation
+    SSL_MODE_ASYNC                             = $00000100;    { 1.1.0 and later }
 
     SSL_SESS_CACHE_OFF                          = $0000;
     SSL_SESS_CACHE_CLIENT                       = $0001;
@@ -1497,6 +1714,15 @@ const
     SSL_SESS_CACHE_NO_INTERNAL                  = (SSL_SESS_CACHE_NO_INTERNAL_LOOKUP or SSL_SESS_CACHE_NO_INTERNAL_STORE);
 
     SSL_SESSION_CACHE_MAX_SIZE_DEFAULT          = (1024 * 20);
+
+ { V8.27 values for handshake SSL_state up to 1.1.0, no longer used except in info callback }
+    SSL_ST_CONNECT                              = $1000;
+    SSL_ST_ACCEPT                               = $2000;
+    SSL_ST_MASK                                 = $0FFF;
+    SSL_ST_INIT                                 = (SSL_ST_CONNECT or SSL_ST_ACCEPT);
+    SSL_ST_BEFORE                               = $4000;
+    SSL_ST_OK                                   = $03;
+    SSL_ST_RENEGOTIATE                          = ($04 or SSL_ST_INIT);
 
     SSL_CB_LOOP                                 = 1;
     SSL_CB_EXIT                                 = 2;
@@ -1541,46 +1767,251 @@ const
     TLSEXT_TYPE_status_request                  = 5;
     TLSEXT_TYPE_elliptic_curves                 = 10;
     TLSEXT_TYPE_ec_point_formats                = 11;
+    TLSEXT_TYPE_signature_algorithms            = 13;  { V8.56 }
+    TLSEXT_TYPE_use_srtp                        = 14;  { V8.56 }
+    TLSEXT_TYPE_heartbeat                       = 15;  { V8.56 }
+    TLSEXT_TYPE_application_layer_protocol_negotiation = 16;  { V8.56 }
+    TLSEXT_TYPE_signed_certificate_timestamp    = 18;  { V8.56 }
+    TLSEXT_TYPE_padding                         = 21;  { V8.56 }
+    TLSEXT_TYPE_encrypt_then_mac                = 22;  { V8.56 }
+    TLSEXT_TYPE_extended_master_secret          = 23;  { V8.56 }
     TLSEXT_TYPE_session_ticket                  = 35;
+    { As defined for TLS1.3 }
+    TLSEXT_TYPE_psk                             = 41;  { V8.56 }
+    TLSEXT_TYPE_early_data                      = 42;  { V8.56 }
+    TLSEXT_TYPE_supported_versions              = 43;  { V8.56 }
+    TLSEXT_TYPE_cookie                          = 44;  { V8.56 }
+    TLSEXT_TYPE_psk_kex_modes                   = 45;  { V8.56 }
+    TLSEXT_TYPE_certificate_authorities         = 47;  { V8.56 }
+    TLSEXT_TYPE_post_handshake_auth             = 49;  { V8.56 }
+    TLSEXT_TYPE_signature_algorithms_cert       = 50;  { V8.56 }
+    TLSEXT_TYPE_key_share                       = 51;  { V8.56 }
+ { Temporary extension type }
+    TLSEXT_TYPE_renegotiate                     = $ff01;  { V8.56 }
 
     TLSEXT_MAXLEN_host_name                     = 255;
     TLSEXT_NAMETYPE_host_name                   = 0;
 
-    SSL_CTRL_SET_TLSEXT_SERVERNAME_CB           = 53;
-    SSL_CTRL_SET_TLSEXT_SERVERNAME_ARG          = 54;
-    SSL_CTRL_SET_TLSEXT_HOSTNAME                = 55;
-    SSL_CTRL_SET_TLSEXT_DEBUG_CB                = 56;
-    SSL_CTRL_SET_TLSEXT_DEBUG_ARG               = 57;
-    SSL_CTRL_GET_TLSEXT_TICKET_KEYS             = 58;   // V8.01
-    SSL_CTRL_SET_TLSEXT_TICKET_KEYS             = 59;   // V8.01
-    SSL_CTRL_SET_TLSEXT_OPAQUE_PRF_INPUT        = 60;   // V8.01
-    SSL_CTRL_SET_TLSEXT_OPAQUE_PRF_INPUT_CB     = 61;   // V8.01
-    SSL_CTRL_SET_TLSEXT_OPAQUE_PRF_INPUT_CB_ARG   = 62;   // V8.01
-    SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB           = 63;   // V8.01
-    SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB_ARG       = 64;   // V8.01
-    SSL_CTRL_SET_TLSEXT_STATUS_REQ_TYPE         = 65;   // V8.01
-    SSL_CTRL_GET_TLSEXT_STATUS_REQ_EXTS         = 66;   // V8.01
-    SSL_CTRL_SET_TLSEXT_STATUS_REQ_EXTS         = 67;   // V8.01
-    SSL_CTRL_GET_TLSEXT_STATUS_REQ_IDS          = 68;   // V8.01
-    SSL_CTRL_SET_TLSEXT_STATUS_REQ_IDS          = 69;   // V8.01
-    SSL_CTRL_GET_TLSEXT_STATUS_REQ_OCSP_RESP    = 70;   // V8.01
-    SSL_CTRL_SET_TLSEXT_STATUS_REQ_OCSP_RESP    = 71;   // V8.01
-    SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB           = 72;   // V8.01
-    SSL_CTRL_SET_TLS_EXT_SRP_USERNAME_CB        = 75;   // V8.01
-    SSL_CTRL_SET_SRP_VERIFY_PARAM_CB            = 76;   // V8.01
-    SSL_CTRL_SET_SRP_GIVE_CLIENT_PWD_CB         = 77;   // V8.01
-    SSL_CTRL_SET_SRP_ARG                        = 78;   // V8.01
-    SSL_CTRL_SET_TLS_EXT_SRP_USERNAME           = 79;   // V8.01
-    SSL_CTRL_SET_TLS_EXT_SRP_STRENGTH           = 80;   // V8.01
-    SSL_CTRL_SET_TLS_EXT_SRP_PASSWORD           = 81;   // V8.01
-    SSL_CTRL_TLS_EXT_SEND_HEARTBEAT             = 85;   // V8.01
-    SSL_CTRL_GET_TLS_EXT_HEARTBEAT_PENDING      = 86;   // V8.01
-    SSL_CTRL_SET_TLS_EXT_HEARTBEAT_NO_REQUESTS  = 87;   // V8.01
 
     SSL_TLSEXT_ERR_OK                           = 0;
     SSL_TLSEXT_ERR_ALERT_WARNING                = 1;
     SSL_TLSEXT_ERR_ALERT_FATAL                  = 2;
     SSL_TLSEXT_ERR_NOACK                        = 3;
+
+// V8.51 Extension context codes
+// This extension is only allowed in TLS
+    SSL_EXT_TLS_ONLY                        = $0001;
+// This extension is only allowed in DTLS
+    SSL_EXT_DTLS_ONLY                       = $0002;
+// Some extensions may be allowed in DTLS but we don't implement them for it
+    SSL_EXT_TLS_IMPLEMENTATION_ONLY         = $0004;
+// Most extensions are not defined for SSLv3 but EXT_TYPE_renegotiate is
+    SSL_EXT_SSL3_ALLOWED                    = $0008;
+///Extension is only defined for TLS1.2 and below
+    SSL_EXT_TLS1_2_AND_BELOW_ONLY           = $0010;
+// Extension is only defined for TLS1.3 and above
+    SSL_EXT_TLS1_3_ONLY                     = $0020;
+// Ignore this extension during parsing if we are resuming
+    SSL_EXT_IGNORE_ON_RESUMPTION            = $0040;
+    SSL_EXT_CLIENT_HELLO                    = $0080;
+// Really means TLS1.2 or below */
+    SSL_EXT_TLS1_2_SERVER_HELLO             = $0100;
+    SSL_EXT_TLS1_3_SERVER_HELLO             = $0200;
+    SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS     = $0400;
+    SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST      = $0800;
+    SSL_EXT_TLS1_3_CERTIFICATE              = $1000;
+    SSL_EXT_TLS1_3_NEW_SESSION_TICKET       = $2000;
+    SSL_EXT_TLS1_3_CERTIFICATE_REQUEST      = $4000;
+
+type
+  { V8.57 whether an SSL server asks a client to send an SSL certificate }
+    TSslCliCertMethod = (sslCliCertNone,
+                         sslCliCertOptional,
+                         sslCliCertRequire);
+
+  { V8.57 certificate supplier protocol, determines which functions are used to get certificates }
+    TSupplierProto = (SuppProtoNone, SuppProtoOwnCA, SuppProtoAcmeV2,    { V8.62 Acmev1 gone }
+                      SuppProtoCertCentre, SuppProtoServtas);
+
+ { V8.57 challenge types, differing certificate types support differing challenges,
+     some have to be processed manually taking several days. }
+    TChallengeType = (ChallNone, ChallFileUNC, ChallFileFtp, ChallFileSrv,
+                      ChallFileApp, ChallDNS,  ChallEmail, ChallAlpnUNC,
+                      ChallAlpnSrv, ChallAlpnApp, ChallManual);   { V8.62 App added }
+
+{ V8.40 OpenSSL streaming ciphers with various modes }
+{ pending ciphers, rc5, cast5, if we care }
+    TEvpCipher = (
+        Cipher_none,
+        Cipher_aes_128_cbc,
+        Cipher_aes_128_cfb,
+        Cipher_aes_128_ecb,
+        Cipher_aes_128_ofb,
+        Cipher_aes_128_gcm,
+        Cipher_aes_128_ocb,
+        Cipher_aes_128_ccm,
+        Cipher_aes_192_cbc,
+        Cipher_aes_192_cfb,
+        Cipher_aes_192_ecb,
+        Cipher_aes_192_ofb,
+        Cipher_aes_192_gcm,
+        Cipher_aes_192_ocb,
+        Cipher_aes_192_ccm,
+        Cipher_aes_256_cbc,
+        Cipher_aes_256_cfb,
+        Cipher_aes_256_ecb,
+        Cipher_aes_256_ofb,
+        Cipher_aes_256_gcm,
+        Cipher_aes_256_ocb,
+        Cipher_aes_256_ccm,
+        Cipher_bf_cbc,        { blowfish needs key length set, 128, 192 or 256 }
+        Cipher_bf_cfb64,
+        Cipher_bf_ecb,
+        Cipher_bf_ofb,
+        Cipher_chacha20,      { chacha20 fixed 256 key }
+        Cipher_des_ede3_cbc,
+        Cipher_des_ede3_cfb64,
+        Cipher_des_ede3_ecb,
+        Cipher_des_ede3_ofb,
+        Cipher_idea_cbc,      { IDEA fixed 128 key }
+        Cipher_idea_cfb64,
+        Cipher_idea_ecb,
+        Cipher_idea_ofb);
+
+
+{ V8.40 OpenSSL message digests or hashes }
+    TEvpDigest = (
+        Digest_md5,
+        Digest_mdc2,
+        Digest_sha1,
+        Digest_sha224,
+        Digest_sha256,
+        Digest_sha384,
+        Digest_sha512,
+        Digest_ripemd160,
+        Digest_sha3_224,    { following V8.51 }
+        Digest_sha3_256,
+        Digest_sha3_384,
+        Digest_sha3_512,
+        Digest_shake128,
+        Digest_shake256,
+        Digest_None);       { V8.52 }
+
+{ V8.40 ICS private key algorithm and key length in bits }
+{ bracketed comment is security level and effective bits,
+  beware long RSA key lengths increase SSL overhead heavily }
+{ creating new RSA keys is computationally expensive, 4096 bits
+  a couple of seconds, 7680 maybe a minute, 15360 hours }   
+    TSslPrivKeyType = (
+        PrivKeyRsa1024,   { level 1 - 80 bits  }
+        PrivKeyRsa2048,   { level 2 - 112 bits }
+        PrivKeyRsa3072,   { level 3 - 128 bits }
+        PrivKeyRsa4096,   { level 3 - 128 bits }
+        PrivKeyRsa7680,   { level 4 - 192 bits }
+        PrivKeyRsa15360,  { level 5 - 256 bits }
+        PrivKeyECsecp256, { level 3 - 128 bits }
+        PrivKeyECsecp384, { level 4 - 192 bits }
+        PrivKeyECsecp512, { level 5 - 256 bits }
+        PrivKeyEd25519,   { level 3 - 128 bits }    { V8.50 was PrivKeyECX25519 }
+        PrivKeyRsaPss2048,   { level 2 - 112 bits } { V8.51 several RsaPss keys }
+        PrivKeyRsaPss3072,   { level 3 - 128 bits }
+        PrivKeyRsaPss4096,   { level 3 - 128 bits }
+        PrivKeyRsaPss7680,   { level 4 - 192 bits }
+        PrivKeyRsaPss15360); { level 5 - 256 bits }
+
+{ V8.40 ICS private key file encryption and mapping to OpenSSL params }
+   TSslPrivKeyCipher = (
+        PrivKeyEncNone,
+        PrivKeyEncTripleDES,
+        PrivKeyEncIDEA,
+        PrivKeyEncAES128,
+        PrivKeyEncAES192,
+        PrivKeyEncAES256,
+        PrivKeyEncBlowfish128);
+      {  PrivKeyEncBlowfish192,   V8.62 now sure we need these
+        PrivKeyEncBlowfish256); }
+
+const
+    SslPrivKeyEvpCipher: array[TSslPrivKeyCipher] of TEvpCipher = (
+        Cipher_none,
+        Cipher_des_ede3_cbc,
+        Cipher_idea_cbc,
+        Cipher_aes_128_cbc,
+        Cipher_aes_192_cbc,
+        Cipher_aes_256_cbc,
+        Cipher_bf_cbc);
+     {   Cipher_bf_cbc,
+        Cipher_bf_cbc);  }
+
+    SslPrivKeyEvpBits: array[TSslPrivKeyCipher] of integer = (
+         0,0,0,0,0,0,128{,192,256});
+
+type
+   { V8.57 SSL/TLS certifioate root validation method }
+    TCertVerMethod   = (CertVerNone, CertVerBundle, CertVerWinStore);
+
+   { V8.57 Logging debug level }
+    THttpDebugLevel  = (DebugNone, DebugConn, DebugParams, DebugSsl, DebugHdr, DebugBody, DebugSslLow);
+
+   { V8.40 options to read pkey and inters from cert PEM and P12 files,
+     croTry will silently fail, croYes will fail with exception  }
+    TCertReadOpt = (croNo, croTry, croYes);             { V8.39 }
+
+   { V8.41 SSL/TLS certificate validation result, V8.57 added None }
+    TChainResult = (chainOK, chainFail, chainWarn, chainNone);
+
+   { V8.40 1.1.0 and later, sets OpenSSL security level to a number }
+    TSslSecLevel = (
+                     sslSecLevelAny,        { 0 - anything allowed, old compatibility }
+                     sslSecLevel80bits,     { 1 - default, RSA/DH keys=>1024, ECC=>160, no MD5 }
+                     sslSecLevel112bits,    { 2 - RSA/DH keys=>2048, ECC=>224, no RC4, no SSL3, no SHA1 certs }
+                     sslSecLevel128bits,    { 3 - RSA/DH keys=>3072, ECC=>256, FS forced, no TLS/1.0  }
+                     sslSecLevel192bits,    { 4 - RSA/DH keys=>7680, ECC=>384, no SHA1 suites, no TLS/1.1  }
+                     sslSecLevel256bits);   { 5 - RSA/DH keys=>15360, ECC=>512  }
+
+   { V8.45 SSL server security level, used by TIcsHost, sets protocol, cipher and SslSecLevel }
+   { warning, requiring key lengths higher than 2048 requires all SSL certificates in the chain to
+     have that minimum key length, including the root }
+   { V8.55 sslSrvSecInter/FS, sslCliSecInter now requires TLS1.1, PCI council EOF TLS1.0 30 June 2018 }
+   { V8.60 added sslSrvSecTls12Less and sslSrvSecTls13Only to disable TLS1.3 if it fails }
+    TSslSrvSecurity = (
+                     sslSrvSecNone,         { 0 - all protocols and ciphers, any key lengths }
+                     sslSrvSecSsl3,         { 1 - SSL3 only, all ciphers, any key lengths, MD5 }
+                     sslSrvSecBack,         { 2 - TLS1 or later, backward ciphers, RSA/DH keys=>1024, ECC=>160, no MD5, SHA1 }
+                     sslSrvSecInter,        { 3 - TLS1.1 or later, intermediate ciphers, RSA/DH keys=>2048, ECC=>224, no RC4, no SHA1 certs }
+                     sslSrvSecInterFS,      { 4 - TLS1.1 or later, intermediate FS ciphers, RSA/DH keys=>2048, ECC=>224, no RC4, no SHA1 certs }
+                     sslSrvSecHigh,         { 5 - TLS1.2 or later, high ciphers, RSA/DH keys=>2048, ECC=>224, no RC4, no SHA1 certs }
+                     sslSrvSecHigh128,      { 6 - TLS1.2 or later, high ciphers, RSA/DH keys=>3072, ECC=>256, FS forced }
+                     sslSrvSecHigh192,      { 7 - TLS1.2 or later, high ciphers, RSA/DH keys=>7680, ECC=>384, FS forced }
+                     sslSrvSecTls12Less,    { 8 - TLSv1.2 or earlier, intermediate FS ciphers, RSA/DH keys=>2048, ECC=>224, no RC4, no SHA1 certs }
+                     sslSrvSecTls13Only);   { 9 - TLSv1.3 only, intermediate FS ciphers, RSA/DH keys=>2048, ECC=>224, no RC4, no SHA1 certs }
+
+const
+    sslSrvSecDefault = sslSrvSecInterFS;    { V8.55 recommended default }
+
+type
+   { V8.54 SSL client security level, used by context, sets protocol, cipher and SslSecLevel }
+    TSslCliSecurity = (
+                     sslCliSecIgnore,       { 0 - ignore, use old settings }
+                     sslCliSecNone,         { 1 - all protocols and ciphers, any key lengths }
+                     sslCliSecSsl3Only,     { 2 - SSLv3 only, all ciphers, any key lengths, MD5 }
+                     sslCliSecTls1Only,     { 3 - TLSv1 only, all ciphers, RSA/DH keys=>2048 }
+                     sslCliSecTls11Only,    { 4 - TLSv1.1 only, all ciphers, RSA/DH keys=>2048 }
+                     sslCliSecTls12Only,    { 5 - TLSv1.2 only, all ciphers, RSA/DH keys=>2048 }
+                     sslCliSecTls13Only,    { 6 - TLSv1.3 only, all ciphers, RSA/DH keys=>2048 }
+                     sslCliSecTls1,         { 7 - TLSv1 or later, all ciphers, RSA/DH keys=>1024 }
+                     sslCliSecTls11,        { 8 - TLSv1.1 or later, all ciphers, RSA/DH keys=>1024 }
+                     sslCliSecTls12,        { 0 - TLSv1.2 or later, all ciphers, RSA/DH keys=>2048 }
+                     sslCliSecBack,         { 10 - TLSv1 or later, backward ciphers, RSA/DH keys=>1024, ECC=>160, no MD5, SHA1 }
+                     sslCliSecInter,        { 11 - TLSv1.1 or later, intermediate ciphers, RSA/DH keys=>2048, ECC=>224, no RC4, no SHA1 certs }
+                     sslCliSecHigh,         { 12 - TLSv1.2 or later, high ciphers, RSA/DH keys=>2048, ECC=>224, no RC4, no SHA1 certs }
+                     sslCliSecHigh128,      { 13 - TLSv1.2 or later, high ciphers, RSA/DH keys=>3072, ECC=>256, FS forced }
+                     sslCliSecHigh192);     { 14 - TLSv1.2 or later, high ciphers, RSA/DH keys=>7680, ECC=>384, FS forced }
+
+const
+    sslCliSecDefault = sslCliSecTls11;  { V8.55 recommended default }
+
+
 
 const
     f_BIO_f_ssl :                              function : PBIO_METHOD; cdecl = nil;
@@ -1612,6 +2043,8 @@ const
     f_SSL_CTX_sess_set_remove_cb:              procedure(Ctx: PSSL_CTX; CB: TRemove_session_cb); cdecl = nil; //AG
     f_SSL_CTX_set0_security_ex_data :          procedure(Ctx: PSSL_CTX;  ex: Pointer);  cdecl = nil;      { V8.40 }
     f_SSL_CTX_set1_param :                     function(Ctx: PSSL_CTX; vpm: PX509_VERIFY_PARAM): integer; cdecl = nil;  { V8.39 1.0.2 }
+    f_SSL_CTX_set_alpn_protos :                function(Ctx: PSSL_CTX; protos: Pointer; protos_len: integer): integer; cdecl = nil;  { V8.56 }
+    f_SSL_CTX_set_alpn_select_cb :             procedure(Ctx: PSSL_CTX; cb: TSsl_alpn_cb; arg: Pointer); cdecl = nil;  { V8.56 }
     f_SSL_CTX_set_cipher_list :                function(C: PSSL_CTX; CipherString: PAnsiChar): Integer; cdecl = nil;
     f_SSL_CTX_set_client_CA_list :             procedure(C: PSSL_CTX; List: PSTACK_OF_X509_NAME); cdecl = nil; //AG
     f_SSL_CTX_set_client_cert_cb:              procedure(CTX: PSSL_CTX; CB: TClient_cert_cb); cdecl = nil; //AG
@@ -1648,6 +2081,7 @@ const
     f_SSL_ctrl :                               function(S: PSSL; Cmd: Integer; LArg: LongInt; PArg: Pointer): LongInt; cdecl = nil;
     f_SSL_do_handshake :                       function(S: PSSL): Integer; cdecl = nil; //AG
     f_SSL_free :                               procedure(S: PSSL); cdecl = nil;
+    f_SSL_get0_alpn_selected :                 procedure(S: PSSL; var data: Pointer; var len: Integer); cdecl = nil;  { V8.56 }
     f_SSL_get0_param :                         function(S: PSSL): PX509_VERIFY_PARAM; cdecl = nil;                      { V8.39 1.0.2 }
     f_SSL_get0_security_ex_data :              function(S: PSSL): Pointer; cdecl = nil;                  { V8.40 }
     f_SSL_get1_session :                       function(S: PSSL): PSSL_SESSION; cdecl = nil;
@@ -1684,11 +2118,13 @@ const
     f_SSL_read :                               function(S: PSSL; Buf: Pointer; Num: Integer): Integer; cdecl = nil;
     f_SSL_renegotiate :                        function(S: PSSL): Integer; cdecl = nil; //AG
     f_SSL_renegotiate_pending :                function(S: PSSL): Integer; cdecl = nil; //AG
+    f_SSL_select_next_proto :                  function (var output: Pointer; var outlen: Integer; input: Pointer; inlen: Integer; client: Pointer; client_len: Integer): Integer; cdecl = nil; { V8.56 }
     f_SSL_session_free :                       procedure(Session: PSSL_SESSION); cdecl = nil;
     f_SSL_set0_security_ex_data :              procedure(S: PSSL;  ex: Pointer);  cdecl = nil;            { V8.40 }
     f_SSL_set1_param :                         function(S: PSSL; vpm: PX509_VERIFY_PARAM): integer; cdecl = nil;        { V8.39 1.0.2 }
     f_SSL_set_SSL_CTX:                         function(S: PSSL; ctx: PSSL_CTX): PSSL_CTX; cdecl = nil;
     f_SSL_set_accept_state :                   procedure(S: PSSL); cdecl = nil; //AG
+    f_SSL_set_alpn_protos :                    function(S: PSSL; protos: TBytes; protos_len: integer): integer; cdecl = nil;  { V8.56 }
     f_SSL_set_bio :                            procedure(S: PSSL; RBio: PBIO; WBio: PBIO); cdecl = nil;
     f_SSL_set_client_CA_list :                 procedure(s: PSSL; List: PSTACK_OF_X509_NAME); cdecl = nil; //AG
     f_SSL_set_connect_state :                  procedure(S: PSSL); cdecl = nil;
@@ -1733,6 +2169,19 @@ const
     f_d2i_SSL_SESSION :                        function(Session: PPSSL_SESSION; const pp: PPAnsiChar; Length: Longword): PSSL_SESSION; cdecl = nil;
     f_i2d_SSL_SESSION :                        function(InSession: PSSL_SESSION; pp: PPAnsiChar): Integer; cdecl = nil;
 
+    f_SSL_CTX_set_options :                    function(C: PSSL_CTX; Op: LongInt): LongInt; cdecl = nil;  // V8.51 x_options exported as of 1.1.0
+    f_SSL_CTX_get_options :                    function(C: PSSL_CTX): LongInt; cdecl = nil;               // V8.51 x_options exported as of 1.1.0
+    f_SSL_CTX_clear_options :                  function(C: PSSL_CTX; Op: LongInt): LongInt;  cdecl = nil; // V8.51 x_options exported as of 1.1.0
+    f_SSL_get_options :                        function(S: PSSL): LongInt; cdecl = nil;                   // V8.51 x_options exported as of 1.1.0
+    f_SSL_set_options :                        function(S: PSSL; Op: LongInt): LongInt; cdecl = nil;      // V8.51 x_options exported as of 1.1.0
+    f_SSL_clear_options :                      function(S: PSSL; Op: LongInt): LongInt;  cdecl = nil;     // V8.51 x_options exported as of 1.1.0
+    f_SSL_session_reused :                     function(SSL: PSSL): Integer; cdecl = nil;                 // V8.51 exported as of 1.1.0
+
+    f_BIO_new_ssl :                            function(Ctx: PSSL_CTX; Client: Boolean): PBIO; cdecl = nil;  // V8.51  not new, but not used before
+    f_BIO_new_ssl_connect :                    function(Ctx: PSSL_CTX): PBIO; cdecl = nil;                   // V8.51
+    f_BIO_new_buffer_ssl_connect :             function(Ctx: PSSL_CTX): PBIO; cdecl = nil;                   // V8.51
+    f_BIO_ssl_copy_session_id :                function(BioTo: PBIO; BioFrom: PBIO): Integer ; cdecl = nil;  // V8.51
+    f_BIO_ssl_shutdown :                       procedure(Bio: PBIO); cdecl = nil;                            // V8.51
 
 {$IFNDEF OPENSSL_NO_ENGINE}
     f_SSL_CTX_set_client_cert_engine :         function(Ctx: PSSL_CTX; e: PENGINE): Integer; cdecl = nil; //AG
@@ -1748,16 +2197,17 @@ procedure IcsVerifySslDll (const Fname: string);
 {$ENDIF}
 
 // macro functions not exported from DLL
-function  f_SSL_CTX_set_options(C: PSSL_CTX; Op: LongInt): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}
-function  f_SSL_CTX_get_options(C: PSSL_CTX): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}
-function  f_SSL_get_options(S: PSSL): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}
-function  f_SSL_set_options(S: PSSL; Op: LongInt): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}
-function  f_SSL_clear_options(S: PSSL; Op: LongInt): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}
+function  f_Ics_SSL_CTX_set_options(C: PSSL_CTX; Op: LongInt): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}    // V8.51 x_options exported as of 1.1.0
+function  f_Ics_SSL_CTX_get_options(C: PSSL_CTX): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}
+function  f_Ics_SSL_CTX_clear_options(C: PSSL_CTX; Op: LongInt): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}   // V8.51 new
+function  f_Ics_SSL_get_options(S: PSSL): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}
+function  f_Ics_SSL_set_options(S: PSSL; Op: LongInt): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}
+function  f_Ics_SSL_clear_options(S: PSSL; Op: LongInt): LongInt; {$IFDEF USE_INLINE} inline; {$ENDIF}
 function  f_SSL_want_read(S: PSSL) : Boolean; {$IFDEF USE_INLINE} inline; {$ENDIF}
 function  f_SSL_want_write(S: PSSL) : Boolean; {$IFDEF USE_INLINE} inline; {$ENDIF}
 function  f_SSL_want_nothing(S: PSSL) : Boolean; {$IFDEF USE_INLINE} inline; {$ENDIF}
 function  f_SSL_want_x509_lookup(S: PSSL) : Boolean; {$IFDEF USE_INLINE} inline; {$ENDIF}
-function  f_SSL_session_reused(SSL: PSSL): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}
+function  f_Ics_SSL_session_reused(SSL: PSSL): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}                 // V8.51 exported as of 1.1.0
 function  f_SSL_CTX_set_session_cache_mode(Ctx: PSSL_CTX; Mode: Integer): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}
 function  f_SSL_CTX_sess_set_cache_size(Ctx: PSSL_CTX; CacheSize: Integer): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}
 function  f_SSL_CTX_add_extra_chain_cert(Ctx: PSSL_CTX; Cert: PX509): Longword; {$IFDEF USE_INLINE} inline; {$ENDIF}
@@ -1771,6 +2221,10 @@ function  f_SSL_CTX_set_min_proto_version(C: PSSL_CTX; version: integer) : Integ
 function  f_SSL_CTX_set_max_proto_version(C: PSSL_CTX;  version: integer) : Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}    { V8.27 }
 function  f_SSL_set_min_proto_version(S: PSSL; version: integer) : Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}    { V8.27 }
 function  f_SSL_set_max_proto_version(S: PSSL; version: integer) : Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}    { V8.27 }
+function  f_SSL_CTX_get_min_proto_version(C: PSSL_CTX) : Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}              { V8.51 added 1.1.1  }
+function  f_SSL_CTX_get_max_proto_version(C: PSSL_CTX) : Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}              { V8.51 added 1.1.1  }
+function  f_SSL_get_min_proto_version(S: PSSL) : Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}                      { V8.51 added 1.1.1  }
+function  f_SSL_get_max_proto_version(S: PSSL) : Integer; {$IFDEF USE_INLINE} inline; {$ENDIF}                      { V8.51 added 1.1.1  }
 function  f_SSL_CTX_set0_chain(C: PSSL_CTX; sk: PSTACK_OF_X509): Integer;  {$IFDEF USE_INLINE} inline; {$ENDIF}    { V8.27 }
 function  f_SSL_CTX_add0_chain_cert(C: PSSL_CTX; Cert: PX509): Integer;  {$IFDEF USE_INLINE} inline; {$ENDIF}    { V8.27 }
 function  f_SSL_CTX_get0_chain_certs(C: PSSL_CTX; sk: PPSTACK_OF_X509): Integer;  {$IFDEF USE_INLINE} inline; {$ENDIF}    { V8.27 }
@@ -1783,6 +2237,20 @@ function f_SSL_CTX_set_tlsext_servername_arg(ctx: PSSL_CTX; arg: Pointer): LongI
 function f_SSL_set_tlsext_debug_callback(S: PSSL; cb: TCallback_ctrl_fp): Longint; {$IFDEF USE_INLINE} inline; {$ENDIF}
 function f_SSL_set_tlsext_debug_arg(S: PSSL; arg: Pointer): Longint; {$IFDEF USE_INLINE} inline; {$ENDIF}
 
+function f_SSL_get1_groups(Ctx: PSSL_CTX; GList: Pointer): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF} { V8.51 OpenSSL 1.1.1 }
+function f_SSL_get_shared_group(Ssl: PSSL; N: Integer): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF} { V8.51 OpenSSL 1.1.1 }
+function f_SSL_CTX_set1_groups(Ctx: PSSL_CTX; GList: Pointer; GListlen: Integer): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF} { V8.51 OpenSSL 1.1.1 }
+function f_SSL_CTX_set1_groups_list(Ctx: PSSL_CTX; GList: Pointer): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF} { V8.51 OpenSSL 1.1.1 }
+function f_SSL_set1_groups(Ctx: PSSL_CTX; GList: Pointer; GListlen: Integer): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF} { V8.51 OpenSSL 1.1.1 }
+function f_SSL_set1_groups_list(Ctx: PSSL_CTX; GList: Pointer): Integer; {$IFDEF USE_INLINE} inline; {$ENDIF} { V8.51 OpenSSL 1.1.1 }
+
+function  f_SSL_CTX_set_mode(C: PSSL_CTX; version: integer) : Integer;     { V8.51 }
+function  f_SSL_CTX_get_mode(C: PSSL_CTX) : Integer;                       { V8.51 }
+function  f_SSL_CTX_clear_mode(C: PSSL_CTX;  version: integer) : Integer;  { V8.51 }
+function  f_SSL_set_mode(S: PSSL; version: integer) : Integer;             { V8.51 }
+function  f_SSL_get_mode(S: PSSL) : Integer;                               { V8.51 }
+function  f_SSL_clear_mode(S: PSSL; version: integer) : Integer;           { V8.51 }
+
 function IcsSslGetState(S: PSSL): TSslHandshakeState;    { V8.27 }
 function IcsSslStub: integer;                            { V8.35 }
 
@@ -1792,38 +2260,33 @@ procedure  f_SSL_set_msg_callback_arg(S: PSSL; arg: Pointer); {$IFDEF USE_INLINE
 
 // V8.35 all OpenSSL exports now in tables, with versions if only available conditionally
 const
-    GSSLEAYImports1: array[0..148] of TOSSLImports = (
-
-    (F: @@f_SSL_CTX_get0_certificate;               N: 'SSL_CTX_get0_certificate';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
-    (F: @@f_SSL_CTX_get0_privatekey;                N: 'SSL_CTX_get0_privatekey';                    MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
-    (F: @@f_SSL_CTX_check_private_key;              N: 'SSL_CTX_check_private_key';                  MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
-
-    (F: @@f_SSL_CTX_set_msg_callback;               N: 'SSL_CTX_set_msg_callback';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
-    (F: @@f_SSL_set_msg_callback;                   N: 'SSL_set_msg_callback';                       MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
-
-    (F: @@f_SSL_CTX_get_security_level;             N: 'SSL_CTX_get_security_level';                 MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-    (F: @@f_SSL_CTX_set_security_level;             N: 'SSL_CTX_set_security_level';                 MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-    (F: @@f_SSL_get_security_level;                 N: 'SSL_get_security_level';                     MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-    (F: @@f_SSL_set_security_level;                 N: 'SSL_set_security_level';                     MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-    (F: @@f_SSL_CTX_set_security_callback;          N: 'SSL_CTX_set_security_callback';              MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-    (F: @@f_SSL_set_security_callback;              N: 'SSL_set_security_callback';                  MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-    (F: @@f_SSL_CTX_set0_security_ex_data;          N: 'SSL_CTX_set0_security_ex_data';              MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-    (F: @@f_SSL_CTX_get0_security_ex_data;          N: 'SSL_CTX_get0_security_ex_data';              MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-    (F: @@f_SSL_get0_security_ex_data;              N: 'SSL_get0_security_ex_data';                  MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-    (F: @@f_SSL_set0_security_ex_data;              N: 'SSL_set0_security_ex_data';                  MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
-
+    GSSLEAYImports1: array[0..165] of TOSSLImports = (
     (F: @@f_BIO_f_ssl;                              N: 'BIO_f_ssl';                                 MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_BIO_new_buffer_ssl_connect;             N: 'BIO_new_buffer_ssl_connect';                MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),    { V8.51 }
+    (F: @@f_BIO_new_ssl;                            N: 'BIO_new_ssl';                               MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),    { V8.51 }
+    (F: @@f_BIO_new_ssl_connect;                    N: 'BIO_new_ssl_connect';                       MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),    { V8.51 }
+    (F: @@f_BIO_ssl_copy_session_id;                N: 'BIO_ssl_copy_session_id';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),    { V8.51 }
+    (F: @@f_BIO_ssl_shutdown;                       N: 'BIO_ssl_shutdown';                          MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),    { V8.51 }
     (F: @@f_SSL_CIPHER_description;                 N: 'SSL_CIPHER_description';                    MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CIPHER_get_bits;                    N: 'SSL_CIPHER_get_bits';                       MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CIPHER_get_name;                    N: 'SSL_CIPHER_get_name';                       MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_add_client_CA;                  N: 'SSL_CTX_add_client_CA';                     MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_callback_ctrl;                  N: 'SSL_CTX_callback_ctrl';                     MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_CTX_check_private_key;              N: 'SSL_CTX_check_private_key';                 MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
+    (F: @@f_SSL_CTX_clear_options;                  N: 'SSL_CTX_clear_options';                     MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.51 }
     (F: @@f_SSL_CTX_ctrl;                           N: 'SSL_CTX_ctrl';                              MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_free;                           N: 'SSL_CTX_free';                              MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_CTX_get0_certificate;               N: 'SSL_CTX_get0_certificate';                  MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
     (F: @@f_SSL_CTX_get0_param;                     N: 'SSL_CTX_get0_param';                        MI: OSSL_VER_1002; MX: OSSL_VER_MAX),     { V8.39 }
+    (F: @@f_SSL_CTX_get0_privatekey;                N: 'SSL_CTX_get0_privatekey';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
+    (F: @@f_SSL_CTX_get0_security_ex_data;          N: 'SSL_CTX_get0_security_ex_data';             MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
+    (F: @@f_SSL_CTX_set_alpn_protos;                N: 'SSL_CTX_set_alpn_protos';                   MI: OSSL_VER_1002; MX: OSSL_VER_MAX),   { V8.56 }
+    (F: @@f_SSL_CTX_set_alpn_select_cb;             N: 'SSL_CTX_set_alpn_select_cb';                MI: OSSL_VER_1002; MX: OSSL_VER_MAX),   { V8.56 }
     (F: @@f_SSL_CTX_get_cert_store;                 N: 'SSL_CTX_get_cert_store';                    MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_get_client_cert_cb;             N: 'SSL_CTX_get_client_cert_cb';                MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_get_ex_data;                    N: 'SSL_CTX_get_ex_data';                       MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_CTX_get_options;                    N: 'SSL_CTX_get_options';                       MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.51 }
+    (F: @@f_SSL_CTX_get_security_level;             N: 'SSL_CTX_get_security_level';                MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
     (F: @@f_SSL_CTX_get_verify_depth;               N: 'SSL_CTX_get_verify_depth';                  MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_get_verify_mode;                N: 'SSL_CTX_get_verify_mode';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_load_verify_locations;          N: 'SSL_CTX_load_verify_locations';             MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
@@ -1834,6 +2297,7 @@ const
     (F: @@f_SSL_CTX_sess_set_get_cb;                N: 'SSL_CTX_sess_set_get_cb';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_sess_set_new_cb;                N: 'SSL_CTX_sess_set_new_cb';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_sess_set_remove_cb;             N: 'SSL_CTX_sess_set_remove_cb';                MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_CTX_set0_security_ex_data;          N: 'SSL_CTX_set0_security_ex_data';             MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
     (F: @@f_SSL_CTX_set1_param;                     N: 'SSL_CTX_set1_param';                        MI: OSSL_VER_1002; MX: OSSL_VER_MAX),     { V8.39 }
     (F: @@f_SSL_CTX_set_cipher_list;                N: 'SSL_CTX_set_cipher_list';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_set_client_CA_list;             N: 'SSL_CTX_set_client_CA_list';                MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
@@ -1843,6 +2307,10 @@ const
     (F: @@f_SSL_CTX_set_default_verify_paths;       N: 'SSL_CTX_set_default_verify_paths';          MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_set_ex_data;                    N: 'SSL_CTX_set_ex_data';                       MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_set_info_callback;              N: 'SSL_CTX_set_info_callback';                 MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_CTX_set_msg_callback;               N: 'SSL_CTX_set_msg_callback';                  MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
+    (F: @@f_SSL_CTX_set_options;                    N: 'SSL_CTX_set_options';                       MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.51 }
+    (F: @@f_SSL_CTX_set_security_callback;          N: 'SSL_CTX_set_security_callback';             MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
+    (F: @@f_SSL_CTX_set_security_level;             N: 'SSL_CTX_set_security_level';                MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
     (F: @@f_SSL_CTX_set_session_id_context;         N: 'SSL_CTX_set_session_id_context';            MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_set_timeout;                    N: 'SSL_CTX_set_timeout';                       MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_CTX_set_trust;                      N: 'SSL_CTX_set_trust';                         MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
@@ -1865,11 +2333,14 @@ const
     (F: @@f_SSL_alert_type_string_long;             N: 'SSL_alert_type_string_long';                MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_callback_ctrl;                      N: 'SSL_callback_ctrl';                         MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_clear;                              N: 'SSL_clear';                                 MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_clear_options;                      N: 'SSL_clear_options';                         MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.51 }
     (F: @@f_SSL_connect;                            N: 'SSL_connect';                               MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_ctrl;                               N: 'SSL_ctrl';                                  MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_do_handshake;                       N: 'SSL_do_handshake';                          MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_free;                               N: 'SSL_free';                                  MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_get0_alpn_selected;                 N: 'SSL_get0_alpn_selected';                    MI: OSSL_VER_1002; MX: OSSL_VER_MAX),   { V8.56 }
     (F: @@f_SSL_get0_param;                         N: 'SSL_get0_param';                            MI: OSSL_VER_1002; MX: OSSL_VER_MAX),     { V8.39 }
+    (F: @@f_SSL_get0_security_ex_data;              N: 'SSL_get0_security_ex_data';                 MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
     (F: @@f_SSL_get1_session;                       N: 'SSL_get1_session';                          MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_get1_supported_ciphers;             N: 'SSL_get1_supported_ciphers';                MI: OSSL_VER_1100; MX: OSSL_VER_MAX),
     (F: @@f_SSL_get_SSL_CTX;                        N: 'SSL_get_SSL_CTX';                           MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
@@ -1882,10 +2353,12 @@ const
     (F: @@f_SSL_get_ex_data;                        N: 'SSL_get_ex_data';                           MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_get_ex_data_X509_STORE_CTX_idx;     N: 'SSL_get_ex_data_X509_STORE_CTX_idx';        MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_get_fd;                             N: 'SSL_get_fd';                                MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_get_options;                        N: 'SSL_get_options';                           MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.51 }
     (F: @@f_SSL_get_peer_cert_chain;                N: 'SSL_get_peer_cert_chain';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_get_peer_certificate;               N: 'SSL_get_peer_certificate';                  MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_get_rbio;                           N: 'SSL_get_rbio';                              MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_get_rfd;                            N: 'SSL_get_rfd';                               MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_get_security_level;                 N: 'SSL_get_security_level';                    MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
     (F: @@f_SSL_get_servername;                     N: 'SSL_get_servername';                        MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_get_servername_type;                N: 'SSL_get_servername_type';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_get_session;                        N: 'SSL_get_session';                           MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
@@ -1903,16 +2376,24 @@ const
     (F: @@f_SSL_read;                               N: 'SSL_read';                                  MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_renegotiate;                        N: 'SSL_renegotiate';                           MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_renegotiate_pending;                N: 'SSL_renegotiate_pending';                   MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
-    (F: @@f_SSL_set1_param;                         N: 'SSL_set1_param';                            MI: OSSL_VER_1002; MX: OSSL_VER_MAX),     { V8.39 }
+    (F: @@f_SSL_select_next_proto;                  N: 'SSL_select_next_proto';                     MI: OSSL_VER_1002; MX: OSSL_VER_MAX),  { V8.56 }
+    (F: @@f_SSL_session_reused;                     N: 'SSL_session_reused';                        MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.51 }
+    (F: @@f_SSL_set0_security_ex_data;              N: 'SSL_set0_security_ex_data';                 MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
+    (F: @@f_SSL_set1_param;                         N: 'SSL_set1_param';                            MI: OSSL_VER_1002; MX: OSSL_VER_MAX),  { V8.39 }
     (F: @@f_SSL_set_SSL_CTX;                        N: 'SSL_set_SSL_CTX';                           MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_set_accept_state;                   N: 'SSL_set_accept_state';                      MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_set_alpn_protos;                    N: 'SSL_set_alpn_protos';                       MI: OSSL_VER_1002; MX: OSSL_VER_MAX),   { V8.56 }
     (F: @@f_SSL_set_bio;                            N: 'SSL_set_bio';                               MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_set_client_CA_list;                 N: 'SSL_set_client_CA_list';                    MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_set_connect_state;                  N: 'SSL_set_connect_state';                     MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_set_ex_data;                        N: 'SSL_set_ex_data';                           MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_set_fd;                             N: 'SSL_set_fd';                                MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_set_info_callback;                  N: 'SSL_set_info_callback';                     MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_set_msg_callback;                   N: 'SSL_set_msg_callback';                      MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),   { V8.40 }
+    (F: @@f_SSL_set_options;                        N: 'SSL_set_options';                           MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.51 }
     (F: @@f_SSL_set_rfd;                            N: 'SSL_set_rfd';                               MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
+    (F: @@f_SSL_set_security_callback;              N: 'SSL_set_security_callback';                 MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
+    (F: @@f_SSL_set_security_level;                 N: 'SSL_set_security_level';                    MI: OSSL_VER_1100; MX: OSSL_VER_MAX),  { V8.40 }
     (F: @@f_SSL_set_session;                        N: 'SSL_set_session';                           MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_set_session_id_context;             N: 'SSL_set_session_id_context';                MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
     (F: @@f_SSL_set_shutdown;                       N: 'SSL_set_shutdown';                          MI: OSSL_VER_MIN; MX: OSSL_VER_MAX),
@@ -2106,37 +2587,62 @@ end;
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-function f_SSL_CTX_set_options(C: PSSL_CTX; Op: LongInt): LongInt;
+function f_Ics_SSL_CTX_set_options(C: PSSL_CTX; Op: LongInt): LongInt;   { V8.51 was f_SSL_CTX_set_options }
 begin
-    Result := f_SSL_CTX_ctrl(C, SSL_CTRL_OPTIONS, Op, nil);
+    if ICS_OPENSSL_VERSION_NUMBER < OSSL_VER_1100 then
+        Result := f_SSL_CTX_ctrl(C, SSL_CTRL_OPTIONS, Op, nil)
+    else
+        Result := f_SSL_CTX_set_options(C, Op);      { exported as of 1.1.0 }
 end;
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-function f_SSL_CTX_get_options(C: PSSL_CTX): LongInt;
+function f_Ics_SSL_CTX_get_options(C: PSSL_CTX): LongInt;                    { V8.51 was f_SSL_CTX_get_options }
 begin
-    Result := f_SSL_CTX_ctrl(C, SSL_CTRL_OPTIONS, 0, nil);
+    if ICS_OPENSSL_VERSION_NUMBER < OSSL_VER_1100 then
+        Result := f_SSL_CTX_ctrl(C, SSL_CTRL_OPTIONS, 0, nil)
+    else
+        Result := f_SSL_CTX_get_options(C);      { exported as of 1.1.0 }
 end;
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-function f_SSL_set_options(S: PSSL; Op: LongInt): LongInt;
+function f_Ics_SSL_CTX_clear_options(C: PSSL_CTX; Op: LongInt): LongInt;   { V8.51 new }
 begin
-    Result := f_SSL_ctrl(S, SSL_CTRL_OPTIONS, Op, nil);
+    if ICS_OPENSSL_VERSION_NUMBER < OSSL_VER_1100 then
+        Result := f_SSL_CTX_ctrl(C, SSL_CTRL_CLEAR_OPTIONS, Op, nil)
+    else
+        Result := f_SSL_CTX_clear_options(C, Op);      { exported as of 1.1.0 }
 end;
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-function f_SSL_clear_options(S: PSSL; Op: LongInt): LongInt;
+function f_Ics_SSL_set_options(S: PSSL; Op: LongInt): LongInt;               { V8.51 was f_SSSL_set_options }
 begin
-    Result := f_SSL_ctrl(S, SSL_CTRL_CLEAR_OPTIONS, Op, nil);
+    if ICS_OPENSSL_VERSION_NUMBER < OSSL_VER_1100 then
+        Result := f_SSL_ctrl(S, SSL_CTRL_OPTIONS, Op, nil)
+    else
+        Result := f_SSL_set_options(S, Op);      { exported as of 1.1.0 }
 end;
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-function f_SSL_get_options(S: PSSL): LongInt;
+function f_Ics_SSL_clear_options(S: PSSL; Op: LongInt): LongInt;              { V8.51 was f_SSL_clear_options }
 begin
-    Result := f_SSL_ctrl(S, SSL_CTRL_OPTIONS, 0, nil);
+    if ICS_OPENSSL_VERSION_NUMBER < OSSL_VER_1100 then
+        Result := f_SSL_ctrl(S, SSL_CTRL_CLEAR_OPTIONS, Op, nil)
+    else
+        Result := f_SSL_clear_options(S, Op);      { exported as of 1.1.0 }
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function f_Ics_SSL_get_options(S: PSSL): LongInt;                            { V8.51 was f_SSL_get_options }
+begin
+    if ICS_OPENSSL_VERSION_NUMBER < OSSL_VER_1100 then
+        Result := f_SSL_ctrl(S, SSL_CTRL_OPTIONS, 0, nil)
+    else
+        Result := f_SSL_get_options(S);      { exported as of 1.1.0 }
 end;
 
 
@@ -2176,9 +2682,12 @@ end;
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
-function f_SSL_session_reused(SSL: PSSL): Integer;
+function f_Ics_SSL_session_reused(SSL: PSSL): Integer;
 begin
-    Result := f_SSL_ctrl(SSL, SSL_CTRL_GET_SESSION_REUSED, 0, nil)
+    if ICS_OPENSSL_VERSION_NUMBER < OSSL_VER_1100 then
+        Result := f_SSL_ctrl(SSL, SSL_CTRL_GET_SESSION_REUSED, 0, nil)
+    else
+        Result := f_SSL_session_reused(SSL);      { exported as of 1.1.0 }
 end;
 
 
@@ -2306,6 +2815,35 @@ begin
 end;
 
 
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_CTX_get_min_proto_version(C: PSSL_CTX) : Integer;               { V8.51 added 1.1.1  }
+begin
+    Result := f_SSL_CTX_ctrl(C, SSL_CTRL_GET_MIN_PROTO_VERSION, 0, Nil);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_CTX_get_max_proto_version(C: PSSL_CTX) : Integer;               { V8.51 added 1.1.1  }
+begin
+    Result := f_SSL_CTX_ctrl(C, SSL_CTRL_GET_MAX_PROTO_VERSION, 0, Nil);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_get_min_proto_version(S: PSSL) : Integer;                       { V8.51 added 1.1.1  }
+begin
+    Result := f_SSL_ctrl(S, SSL_CTRL_GET_MIN_PROTO_VERSION, 0, Nil);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_get_max_proto_version(S: PSSL) : Integer;                       { V8.51 added 1.1.1  }
+begin
+    Result := f_SSL_ctrl(S, SSL_CTRL_GET_MAX_PROTO_VERSION, 0, Nil);
+end;
+
+
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 function  f_SSL_CTX_set0_chain(C: PSSL_CTX; sk: PSTACK_OF_X509): Integer;       { V8.27 }
 begin
@@ -2380,6 +2918,92 @@ procedure  f_SSL_set_msg_callback_arg(S: PSSL; arg: Pointer);           { V8.40 
 begin
     f_SSL_ctrl(S, SSL_CTRL_SET_MSG_CALLBACK_ARG, 0, arg);
 end;
+
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_get1_groups(Ctx: PSSL_CTX; GList: Pointer): Integer; { V8.51 OpenSSL 1.1.1 }
+begin
+    Result := f_SSL_CTX_ctrl(Ctx, SSL_CTRL_GET_GROUPS, 0, GList);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_get_shared_group(Ssl: PSSL; N: Integer): Integer; { V8.51 OpenSSL 1.1.1 }
+begin
+    Result := f_SSL_ctrl(Ssl, SSL_CTRL_GET_SHARED_GROUP, N, nil);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_CTX_set1_groups(Ctx: PSSL_CTX; GList: Pointer; GListlen: Integer): Integer; { V8.51 OpenSSL 1.1.1 }
+begin
+    Result := f_SSL_CTX_ctrl(Ctx, SSL_CTRL_SET_GROUPS, GListlen, GList);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_CTX_set1_groups_list(Ctx: PSSL_CTX; GList: Pointer): Integer; { V8.51 OpenSSL 1.1.1 }
+begin
+    Result := f_SSL_CTX_ctrl(Ctx, SSL_CTRL_SET_GROUPS_LIST, 0, GList);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_set1_groups(Ctx: PSSL_CTX; GList: Pointer; GListlen: Integer): Integer; { V8.51 OpenSSL 1.1.1 }
+begin
+    Result := f_SSL_CTX_ctrl(Ctx, SSL_CTRL_SET_GROUPS, GListlen, GList);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_set1_groups_list(Ctx: PSSL_CTX; GList: Pointer): Integer; { V8.51 OpenSSL 1.1.1 }
+begin
+    Result := f_SSL_CTX_ctrl(Ctx, SSL_CTRL_SET_GROUPS_LIST, 0, GList);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_CTX_set_mode(C: PSSL_CTX; version: integer) : Integer;     { V8.51 }
+begin
+    Result := f_SSL_CTX_ctrl(C, SSL_CTRL_MODE, version, Nil);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_CTX_get_mode(C: PSSL_CTX) : Integer;                       { V8.51 }
+begin
+    Result := f_SSL_CTX_ctrl(C, SSL_CTRL_MODE, 0, Nil);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_CTX_clear_mode(C: PSSL_CTX;  version: integer) : Integer;  { V8.51 }
+begin
+    Result := f_SSL_CTX_ctrl(C, SSL_CTRL_CLEAR_MODE, version, Nil);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_set_mode(S: PSSL; version: integer) : Integer;             { V8.51 }
+begin
+    Result := f_SSL_ctrl(S, SSL_CTRL_MODE, version, Nil);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_get_mode(S: PSSL) : Integer;                               { V8.51 }
+begin
+    Result := f_SSL_ctrl(S, SSL_CTRL_MODE, 0, Nil);
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function  f_SSL_clear_mode(S: PSSL; version: integer) : Integer;           { V8.51 }
+begin
+    Result := f_SSL_ctrl(S, SSL_CTRL_CLEAR_MODE, version, Nil);
+end;
+
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}

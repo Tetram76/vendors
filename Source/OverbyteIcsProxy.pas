@@ -3,13 +3,13 @@
 Author:       Angus Robertson, Magenta Systems Ltd
 Description:  Forward and Reverse SSL HTTP Proxy
 Creation:     May 2017
-Updated:      May 2017
-Version:      8.50
+Updated:      Oct 2018
+Version:      8.59
 Sponsor:      This component was sponsored in part by Avenir Health and
               Banxia Software Ltd. http://www.avenirhealth.org
 EMail:        francois.piette@overbyte.be  http://www.overbyte.be
 Support:      Use the mailing list twsocket@elists.org
-Legal issues: Copyright (C) 1997-2017 by François PIETTE
+Legal issues: Copyright (C) 1997-2018 by François PIETTE
               Rue de Grady 24, 4053 Embourg, Belgium.
               <francois.piette@overbyte.be>
 
@@ -108,6 +108,10 @@ Target - TSslWSocket that connects to a remote target destination,   Part
    changed to alter the target for this connection only.  If TarPort is zero,
    the source port and SSL method are copied for the target.
 
+See OverbyteIcsWSocketS.pas for documentation on TSslWSocketServer whose
+properties are exposed by TSslWSocketServer and for IcsHosts which is each
+Source. including automatic SSL certificate ordering.
+
 Once source and target are connected, traffic from source is sent to target,
 and vice versa.  The proxy receives data in a temporary TBytes buffer of size
 RxBuffSize (default 64K).  For HTTP, entire request and response headers are
@@ -180,15 +184,39 @@ Updates:
                       Convert html TByte buffers to unicode instead of ANSI
                       Post data now calls onHttpReqBody event
                       Don't try and access Windows cert store on MacOS, etc
+Jul 2, 2018  V8.55 - Builds with NO_DEBUG_LOG
+Oct 2, 2018  V8.57 - Added OnSslAlpnSelect called after OnSslServerName for HTTP/2
+                     INI file reads CertVerTar, DebugLevel and TarSecLevel to be
+                       read as typed literals as well as numeric values.
+                     Added SslCliCertMethod to allow server to request a client
+                       SSL certificate from the browser, NOTE you should check it
+                       the OnSslHandshakeDone event and close the connection if
+                       invalid, beware this usually causes the browser to request
+                       a certificate which can be obtrusive.
+                     Allow SSL certificates to be ordered and installed automatically
+                       by RecheckSslCerts if SslCertAutoOrder=True and so specified in
+                       IcsHosts, if a TSslX509Certs component is attached and a
+                       certificate supplier account has been created (by the
+                       OverbyteIcsX509CertsTst sample application).
+                    Note certificate ordering currently only works with Proto=HTTP.
+                    INI file reads SslCliCertMethod, SslCertAutoOrder and CertExpireDays.
+                    Support FMX
+Oct 19, 2018  V8.58 version only
+Nov 19, 2018  V8.59 Sanity checks reading mistyped enumerated values from INI file.
+Dec 04, 2018  V8.59 Added AUTO_X509_CERTS define set in OverbyteIcsDefs.inc which
+                      can be disabled to remove a lot of units if automatic SSL/TLS
+                      ordering is not required, saves up to 1 meg of code.
+
+
 
 pending...
-
 Test Transfer-Encoding: gzip, chunked
 Proxy statistics
-
 }
 
+{$IFNDEF ICS_INCLUDE_MODE}
 unit OverbyteIcsProxy;
+{$ENDIF}
 
 {$I Include\OverbyteIcsDefs.inc}
 
@@ -211,8 +239,8 @@ uses
 {$IFDEF MSWINDOWS}
     {$IFDEF RTL_NAMESPACES}Winapi.Messages{$ELSE}Messages{$ENDIF},
     {$IFDEF RTL_NAMESPACES}Winapi.Windows{$ELSE}Windows{$ENDIF},
+    {$IFDEF RTL_NAMESPACES}System.TypInfo{$ELSE}TypInfo{$ENDIF},
     {$IFDEF RTL_NAMESPACES}System.IniFiles{$ELSE}IniFiles{$ENDIF},
-    OverbyteIcsMsSslUtils, OverbyteIcsWinCrypt,     { V8.50 }
 {$ENDIF}
 {$IFDEF POSIX}
     Posix.Time,
@@ -222,8 +250,7 @@ uses
     {$Ifdef Rtl_Namespaces}System.Classes{$Else}Classes{$Endif},
     {$Ifdef Rtl_Namespaces}System.Sysutils{$Else}Sysutils{$Endif},
     {$IFDEF Rtl_Namespaces}System.StrUtils{$ELSE}StrUtils{$ENDIF},
-    Overbyteicsssleay, Overbyteicslibeay,
-    OverbyteIcsSslSessionCache,
+    OverbyteIcsSsleay, OverbyteIcsLibeay,
     {$I Include\OverbyteIcsZlib.inc}
     OverbyteIcsZlibHigh,
     {$IFDEF USE_ZLIB_OBJ}
@@ -232,16 +259,28 @@ uses
         OverbyteIcsZLibDll,     {interface to access zLib1.dll}
     {$ENDIF}
     OverbyteIcsLogger,
- // OverbyteIcsStreams,
 {$IFDEF FMX}
     Ics.Fmx.OverbyteIcsWndControl,
     Ics.Fmx.OverbyteIcsWSocket,
     Ics.Fmx.OverbyteIcsWSocketS,
+    Ics.Fmx.OverbyteIcsSslSessionCache,
+    Ics.Fmx.OverbyteIcsMsSslUtils,     { V8.57 }
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+    Ics.Fmx.OverbyteIcsSslX509Certs,   { V8.57 }
+{$ENDIF} // AUTO_X509_CERTS
 {$ELSE}
     OverbyteIcsWndControl,
     OverbyteIcsWSocket,
     OverbyteIcsWSocketS,
+    OverbyteIcsSslSessionCache,
+    OverbyteIcsMsSslUtils,      { V8.57 }
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+    OverbyteIcsSslX509Certs,    { V8.57 }
+{$ENDIF} // AUTO_X509_CERTS
 {$ENDIF FMX}
+{$IFDEF MSWINDOWS}
+    OverbyteIcsWinCrypt,
+{$ENDIF MSWINDOWS}
     OverbyteIcsTypes,
     OverbyteIcsMimeUtils,
     OverbyteIcsFormDataDecoder,
@@ -254,9 +293,9 @@ uses
 {$IFDEF USE_SSL}
 
 const
-    THttpServerVersion = 850;
-    CopyRight : String = ' TIcsHttpProxy (c) 2017 F. Piette V8.50 ';
-    DefServerHeader : string = 'Server: ICS-Proxy-8.50';
+    THttpServerVersion = 859;
+    CopyRight : String = ' TIcsHttpProxy (c) 2018 F. Piette V8.59 ';
+    DefServerHeader : string = 'Server: ICS-Proxy-8.59';
     CompressMinSize = 5000;     // 5K minimum to make it worth compressing a page
     CompressMaxSize = 5000000;  // 5M bigger takes too long
     DefRxBuffSize = 65536;
@@ -358,7 +397,7 @@ type
   end;
 
 
-  { TIcsHosts defines a collection of TIcsHost }
+  { TProxyTargets defines a collection of TProxyTarget }
 
   TProxyTargets = class(TCollection)
   private
@@ -457,7 +496,7 @@ type
     FTarSslCtx: TSslContext;
     FTarSslCertList: TStringList;
 {$IFDEF MSWINDOWS}
-    FMsCertChainEngine: TMsCertChainEngine;   { V8.50 } 
+    FMsCertChainEngine: TMsCertChainEngine;   { V8.50 }
 {$ENDIF}
     FRxBuffSize: Integer;
     FMaxClients: Integer;
@@ -483,6 +522,7 @@ type
     FOnSrcDisconnect: TWSocketClientConnectEvent; // when source client disconnects
     FOnTarConnect: TWSocketClientConnectEvent;    // when remote target connects
     FOnTarDisconnect: TWSocketClientConnectEvent; // when remote target disconnects
+    FOnSslAlpnSelect: TSslAlpnSelect;             { V8.57 }
     function  GetIcsHosts: TIcsHostCollection;
     procedure SetIcsHosts(const Value: TIcsHostCollection);
     function  GetRootCA: String;
@@ -492,6 +532,16 @@ type
     procedure SetProxyTargets(const Value: TProxyTargets);
     function  GetRunning: Boolean;
     function  GetClientCount: Integer;
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+    function  GetSslX509Certs: TSslX509Certs;                     { V8.57 }
+    procedure SetSslX509Certs(const Value : TSslX509Certs);       { V8.57 }
+{$ENDIF} // AUTO_X509_CERTS
+    function  GetSslCliCertMethod: TSslCliCertMethod;             { V8.57 }
+    procedure SetSslCliCertMethod(const Value : TSslCliCertMethod); { V8.57 }
+    function  GetCertExpireDays: Integer;                         { V8.57 }
+    procedure SetCertExpireDays(const Value : Integer);           { V8.57 }
+    function  GetSslCertAutoOrder: Boolean;                       { V8.57 }
+    procedure SetSslCertAutoOrder(const Value : Boolean);         { V8.57 }
   protected
    { Protected declarations }
     procedure IcsLogEvent (Sender: TObject; LogOption: TLogOption;
@@ -516,6 +566,8 @@ type
                                 PeerCert: TX509Base; var Disconnect : Boolean);
     procedure ServerServerName(Sender: TObject;
                           var Ctx: TSslContext; var ErrCode: TTlsExtError);
+    procedure ServerAlpnSelect(Sender: TObject;
+        ProtoList: TStrings; var SelProto : String; var ErrCode: TTlsExtError);  { V8.57 }
     procedure WndProc(var MsgRec: TMessage); override;
     procedure WMTargetConnected(var msg: TMessage);
     function  MsgHandlersCount: Integer; override;
@@ -575,6 +627,16 @@ type
                                                     write FSslRevocation;
     property  SslReportChain : boolean              read  FSslReportChain
                                                     write FSslReportChain;
+    property  SslCliCertMethod: TSslCliCertMethod   read  GetSslCliCertMethod
+                                                    write SetSslCliCertMethod; { V8.57 }
+    property  SslCertAutoOrder: Boolean             read  GetSslCertAutoOrder
+                                                    write SetSslCertAutoOrder; { V8.57 }
+    property  CertExpireDays: Integer               read  GetCertExpireDays
+                                                    write SetCertExpireDays; { V8.57 }
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+    property  SslX509Certs: TSslX509Certs           read  GetSslX509Certs
+                                                    write SetSslX509Certs; { V8.57 }
+{$ENDIF} // AUTO_X509_CERTS
     property  onProxyProg: TProxyProgEvent          read  FonProxyProg
                                                     write FonProxyProg;
     property  OnSetTarget: TProxyTarEvent           read  FOnSetTarget
@@ -596,6 +658,8 @@ type
     property  OnTarDisconnect: TWSocketClientConnectEvent
                                                     read  FOnTarDisconnect
                                                     write FOnTarDisconnect;
+    property  OnSslAlpnSelect: TSslAlpnSelect       read  FOnSslAlpnSelect
+                                                    write FOnSslAlpnSelect;     { V8.57 }
   end;
 
 { THtttpProxyClient - similar to TProxyClient, but processing HTTP/HTML }
@@ -1151,7 +1215,9 @@ begin
     FTarSocket.OnSslCliGetSession := TargetCliGetSession;
     FTarSocket.OnSslVerifyPeer := TargetVerifyPeer;
     FTarSocket.OnSslHandshakeDone := TargetHandshakeDone;
+{$IFNDEF NO_DEBUG_LOG}
     FTarSocket.IcsLogger := FProxySource.FIcsLog;
+{$ENDIF}
     FTarSocket.LingerOnOff := wsLingerOff;
     FTarSocket.LingerTimeout := 0;
     FTarSocket.LineMode := false;
@@ -1755,6 +1821,81 @@ end;
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function TIcsProxy.GetSslCliCertMethod: TSslCliCertMethod;             { V8.57 }
+begin
+    if Assigned(FSourceServer) then
+        Result := TSslWSocketServer(FSourceServer).SslCliCertMethod
+    else
+        Result := sslCliCertNone;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TIcsProxy.SetSslCliCertMethod(const Value : TSslCliCertMethod); { V8.57 }
+begin
+    if Assigned(FSourceServer) then
+        TSslWSocketServer(FSourceServer).SslCliCertMethod := Value;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function TIcsProxy.GetSslCertAutoOrder: Boolean;                       { V8.57 }
+begin
+    if Assigned(FSourceServer) then
+        Result := TSslWSocketServer(FSourceServer).SslCertAutoOrder
+    else
+        Result := False;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TIcsProxy.SetSslCertAutoOrder(const Value : Boolean);         { V8.57 }
+begin
+    if Assigned(FSourceServer) then
+        TSslWSocketServer(FSourceServer).SslCertAutoOrder := Value;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+function TIcsProxy.GetCertExpireDays: Integer;                         { V8.57 }
+begin
+    if Assigned(FSourceServer) then
+        Result := TSslWSocketServer(FSourceServer).CertExpireDays
+    else
+        Result := 30;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TIcsProxy.SetCertExpireDays(const Value : Integer);           { V8.57 }
+begin
+    if Assigned(FSourceServer) then
+        TSslWSocketServer(FSourceServer).CertExpireDays := Value;
+end;
+
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+{$IFDEF AUTO_X509_CERTS}  { V8.59 }
+function TIcsProxy.GetSslX509Certs: TSslX509Certs;    { V8.57 }
+begin
+    if Assigned(FSourceServer) then
+        Result := TSslWSocketServer(FSourceServer).GetSslX509Certs as TSslX509Certs
+    else
+        Result := nil;
+end;
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TIcsProxy.SetSslX509Certs(const Value : TSslX509Certs);    { V8.57 }
+begin
+    if Assigned(FSourceServer) then
+        TSslWSocketServer(FSourceServer).SetSslX509Certs(Value);
+end;
+
+
+{$ENDIF} // AUTO_X509_CERTS
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 function TIcsProxy.ValidateHosts(Stop1stErr: Boolean=True;
                                         NoExceptions: Boolean=False): String;
 var
@@ -1936,8 +2077,10 @@ begin
     Self.Handle;
 
   { single SslContext for all target sockets }
+{$IFNDEF NO_DEBUG_LOG}
     FTarSslCtx.IcsLogger := FIcsLog;
-    FTarSslCtx.SslSessionCacheModes := [];
+ {$ENDIF}
+   FTarSslCtx.SslSessionCacheModes := [];
     if Assigned(FSslSessCache) then begin
         FTarSslCtx.SslSessionCacheModes := [sslSESS_CACHE_CLIENT,
             sslSESS_CACHE_NO_INTERNAL_LOOKUP, sslSESS_CACHE_NO_INTERNAL_STORE];
@@ -1975,13 +2118,16 @@ begin
         OnSslSvrGetSession := ServerSvrGetSession;
         OnSslHandshakeDone := ServerHandshakeDone;
         OnSslServerName := ServerServerName;
+        OnSslAlpnSelect := ServerAlpnSelect;  { V8.57 }
         Banner := ''; { must not send anything upon connect }
         BannerTooBusy := '';
         Proto := 'tcp';
         MaxClients := FMaxClients;
         ExclusiveAddr := FExclusiveAddr;
         SocketErrs := FSocketErrs;
+{$IFNDEF NO_DEBUG_LOG}
         IcsLogger := FIcsLog;
+{$ENDIF}
         CreateCounter;
      { V8.49 returns list of exceptions, if any }
         ErrInfo := MultiListenEx;    { listen on multiple sockets, if more than one configured }
@@ -2132,6 +2278,7 @@ end;
 
 
 
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure TIcsProxy.ServerServerName(Sender: TObject; var Ctx: TSslContext; var ErrCode: TTlsExtError);
 begin
     if (DebugLevel >= DebugSsl) then begin
@@ -2140,6 +2287,15 @@ begin
     end;
 end;
 
+
+
+{* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
+procedure TIcsProxy.ServerAlpnSelect(Sender: TObject;
+    ProtoList: TStrings; var SelProto : String; var ErrCode: TTlsExtError);  { V8.57 }
+begin
+    if Assigned(FOnSslAlpnSelect) then
+        FOnSslAlpnSelect(Sender, ProtoList, SelProto, ErrCode);
+end;
 
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
@@ -4367,6 +4523,9 @@ end;
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure IcsLoadTIcsHttpProxyFromIni(MyIniFile: TCustomIniFile; IcsHttpProxy:
                 TIcsHttpProxy; const Section: String = 'Proxy');
+var
+    S: String;
+    V: Integer;
 begin
     if NOT Assigned (MyIniFile) then
         raise ESocketException.Create('Must open and assign INI file first');
@@ -4380,9 +4539,36 @@ begin
         LocalAddr := MyIniFile.ReadString(Section, 'LocalAddr', '');
         RootCA := IcsTrim(MyIniFile.ReadString(Section, 'RootCA', ''));
         DHParams := MyIniFile.ReadString(Section, 'DHParams', '');
-        DebugLevel := TDebugLevel(MyIniFile.ReadInteger (Section, 'DebugLevel', 2));
-        TarSecLevel := TSslSecLevel(MyIniFile.ReadInteger(Section, 'TarSecLevel', 1));
-        CertVerTar := TCertVerMethod(MyIniFile.ReadInteger(Section, 'CertVerTar', 1));
+//        DebugLevel := TDebugLevel(MyIniFile.ReadInteger (Section, 'DebugLevel', 2));
+        S := IcsTrim(MyIniFile.ReadString (Section, 'DebugLevel', ''));
+        if S = '' then
+            V := -1
+        else if IsDigit(S[1]) then   { V8.57 ini may contain integer or enum type string }
+            V := atoi(S)
+        else
+            V := GetEnumValue (TypeInfo (TDebugLevel), S);
+        if V < 0 then V := Ord(DebugSsl); // sanity check
+        DebugLevel := TDebugLevel(V);                                     { V8.57 }
+ //        TarSecLevel := TSslSecLevel(MyIniFile.ReadInteger(Section, 'TarSecLevel', 1));
+        S := IcsTrim(MyIniFile.ReadString(section, 'TarSecLevel', ''));
+        if S = '' then
+            V := -1
+        else if IsDigit(S[1]) then   { V8.57 ini may contain integer or enum type string }
+            V := atoi(S)
+        else
+            V := GetEnumValue (TypeInfo (TSslSecLevel), S);
+        if V < 0 then V := Ord(sslCliSecDefault); // sanity check
+        TarSecLevel := TSslSecLevel(V);                                    { V8.57 }
+//        CertVerTar := TCertVerMethod(MyIniFile.ReadInteger(Section, 'CertVerTar', 1));
+        S := IcsTrim(MyIniFile.ReadString(Section, 'CertVerTar', ''));
+        if S = '' then
+            V := -1
+        else if IsDigit(S[1]) then   { V8.57 ini may contain integer or enum type string }
+            V := atoi(S)
+        else
+            V := GetEnumValue (TypeInfo (TCertVerMethod), S);
+        if V < 0 then V := Ord(CertVerBundle); // sanity check
+        CertVerTar := TCertVerMethod(V);                                               { V8.57 }
         SslRevocation := IcsCheckTrueFalse(MyIniFile.ReadString (Section, 'SslRevocation', 'False'));
         SslReportChain := IcsCheckTrueFalse(MyIniFile.ReadString (Section, 'SslReportChain', 'False'));
         HttpIgnoreClose := IcsCheckTrueFalse(MyIniFile.ReadString (Section, 'HttpIgnoreClose', 'False'));
@@ -4392,6 +4578,12 @@ begin
         HttpStopCached := IcsCheckTrueFalse(MyIniFile.ReadString (Section, 'SslReportChain', 'False'));
         HttpMaxBody := MyIniFile.ReadInteger(Section, 'HttpMaxBody', 1000000);
         HttpCompMinSize := MyIniFile.ReadInteger(Section, 'HttpCompMinSize', CompressMinSize);
+        SslCliCertMethod := TSslCliCertMethod(GetEnumValue (TypeInfo (TSslCliCertMethod),
+                        IcsTrim(MyIniFile.ReadString(section, 'SslCliCertMethod', 'sslCliCertNone'))));     { V8.57 }
+        if SslCliCertMethod > High(TSslCliCertMethod) then
+             SslCliCertMethod := sslCliCertNone;                                                            { V8.59 sanity test }
+        SslCertAutoOrder := IcsCheckTrueFalse(MyIniFile.ReadString (section, 'SslCertAutoOrder', 'False')); { V8.57 }
+        CertExpireDays := MyIniFile.ReadInteger(Section, 'CertExpireDays', CertExpireDays);                 { V8.57 }
     end;
 end;
 

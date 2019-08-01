@@ -8,11 +8,10 @@ Description:  A small utility to export SSL certificate from IE certificate
               LIBEAY32.DLL (OpenSSL) by Francois Piette <francois.piette@overbyte.be>
               Makes use of OpenSSL (http://www.openssl.org)
               Makes use of the Jedi JwaWincrypt.pas (MPL).
-Version:      8.50
+Version:      8.62
 EMail:        francois.piette@overbyte.be  http://www.overbyte.be
-Support:      Use the mailing list ics-ssl@elists.org
-              Follow "SSL" link at http://www.overbyte.be for subscription.
-Legal issues: Copyright (C) 2003-2017 by François PIETTE
+Support:      https://en.delphipraxis.net/forum/37-ics-internet-component-suite/
+Legal issues: Copyright (C) 2003-2019 by François PIETTE
               Rue de Grady 24, 4053 Embourg, Belgium.
               <francois.piette@overbyte.be>
 
@@ -91,7 +90,16 @@ Jun 20, 2017 V8.49 Fixed some missing spaces after : in certificate info listing
 Sep 22, 2017 V8.50 Corrected X25519 private keys to ED25519, requires OpenSSL 1.1.1
                    Alternate DNS names are now correctly added to requests and certs
                    Specify and save CA Bundle separately to certificate to avoid
-                      confusion and needing to repeatedly reload pkey to sign certs 
+                      confusion and needing to repeatedly reload pkey to sign certs
+Nov 3, 2017  V8.51 Tested ED25519 keys, can now sign requests and certs
+             Added RSA-PSS keys and SHA3 digest hashes, requires OpenSSL 1.1.1
+Feb 14, 2018 V8.52 TX509 PublicKey now X509PublicKey
+Mar 12, 2018 V8.53 Display Wsocket version in About
+Jun 11, 2018 V8.55 don't load OpenSSL in Create
+Oct 19, 2018 V8.58 version only
+Apr 16, 2019 V8.61 Show certificate expiry and issue time as well as date.
+Jul  9, 2019 V8.62 Load several type lists from literals for future proofing.
+                   Report ACME Identifier in certificate, if it exists. 
 
 
 Pending
@@ -129,10 +137,10 @@ uses
   OverbyteIcsUtils, OverbyteIcsSslX509Utils;
 
 const
-     PemToolVersion     = 850;
-     PemToolDate        = 'Sep 22, 2017';
+     PemToolVersion     = 862;
+     PemToolDate        = 'July 9, 2019';
      PemToolName        = 'PEM Certificate Tool';
-     CopyRight : String = '(c) 2003-2017 by François PIETTE V8.50 ';
+     CopyRight : String = '(c) 2003-2019 by François PIETTE V8.62 ';
      CaptionMain        = 'ICS PEM Certificate Tool - ';
      WM_APPSTARTUP      = WM_USER + 1;
 
@@ -495,6 +503,9 @@ end;
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure TfrmPemTool1.FormCreate(Sender: TObject);
+var
+    I: Integer;
+    KC: TSslPrivKeyCipher;
 begin
     Application.OnException := AppOnException;
     FProgDir     := ExtractFilePath(ParamStr(0));
@@ -507,13 +518,19 @@ begin
     GSSL_DLL_DIR := FProgDir;        { V8.38 only from our directory }
     GSSL_SignTest_Check := True;     { V8.38 check digitally signed }
     GSSL_SignTest_Certificate := True; { V8.38 check digital certificate }
-    OverbyteIcsWSocket.LoadSsl;
-    OpenDlg.Filter := 'Certs *.pem;*.cer;*.crt;*.der;*.p12;*.pfx;*.p7*;*.spc|' +
+    OpenDlg.Filter := SslCertFileOpenExts;    { V8.62 }
+   {  'Certs *.pem;*.cer;*.crt;*.der;*.p12;*.pfx;*.p7*;*.spc|' +
                             '*.pem;*.cer;*.crt;*.der;*.p12;*.pfx;*.p7*;*.spc|' +
-                            'All Files *.*|*.*';
-    FSslCertTools := TSslCertTools.Create(self);
-    FSslCertTools.OnKeyProgress := ToolsOKeyProgress;
-    FSslCAX09 := TX509Base.Create(self);    // V8.50
+                            'All Files *.*|*.*'; }
+    CertSignHash.Items.Clear;
+    for I := 0 to DigestListLitsLast do
+      CertSignHash.Items.Add(DigestListLits[I]);    { V8.62 }
+    KeyType.Items.Clear;
+    for I := 0 to SslPrivKeyTypeLitsLast2 do
+        KeyType.Items.Add(SslPrivKeyTypeLits[I]);     { V8.62 }
+    KeyEncrypt.Items.Clear;
+    for KC := Low(TSslPrivKeyCipher) to High(TSslPrivKeyCipher) do
+        KeyEncrypt.Items.Add(SslPrivKeyCipherLits[KC]);     { V8.62 }
 end;
 
 
@@ -610,6 +627,11 @@ end;
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure TfrmPemTool1.WMAppStartup(var Msg: TMessage);
 begin
+ // V8.55 don't load OpenSSL in create
+    OverbyteIcsWSocket.LoadSsl;
+    FSslCertTools := TSslCertTools.Create(self);
+    FSslCertTools.OnKeyProgress := ToolsOKeyProgress;
+    FSslCAX09 := TX509Base.Create(self);    // V8.50
     frmPemTool1.Caption := CaptionMain + Trim(CurrentCertDirEdit.Text);
     PageControl1.ActivePageIndex := 0;
     LvCerts.Perform(CM_RECREATEWND, 0, 0); // fix column buttons not displayed
@@ -698,6 +720,8 @@ end;
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 function ListCertDetail(Cert: TX509Base): string;
+var
+    Ext: TExtension;
 begin
     if NOT Assigned (Cert) then begin
         Result := 'No certificate loaded';
@@ -739,11 +763,11 @@ begin
                 'Locality (L): ' + IssuerLName + #13#10 +
                 'Email (Email): ' + IssuerEmailName + #13#10;
         end;
-        Result := Result + '' + #13#10 +
+       Result := Result + '' + #13#10 +
             'GENERAL' + #13#10 +
             'Serial Number: ' + SerialNumHex + #13#10 + // Oct 2015 not always very numeric IntToStr (SerialNum));
-            'Issued on: ' + DateToStr(ValidNotBefore) + #13#10 +
-            'Expires on: ' + DateToStr(ValidNotAfter) + #13#10 +
+            'Issued on (UTC): ' + DateTimeToStr(ValidNotBefore) + #13#10 +  { V8.61 }
+            'Expires on (UTC): ' + DateTimeToStr(ValidNotAfter) + #13#10 +  { V8.61 }
             'Basic Constraints: ' + IcsUnwrapNames(BasicConstraints) + #13#10 +
             'Key Usage: ' + IcsUnwrapNames(KeyUsage) + #13#10 +
             'Extended Key Usage: ' + IcsUnwrapNames(ExKeyUsage) + #13#10 +
@@ -754,6 +778,9 @@ begin
             'Subject Key Identifier: ' + IcsUnwrapNames(SubjectKeyId) + #13#10 +
             'Signature Algorithm: ' + SignatureAlgorithm + #13#10 +  // Oct 2015
             'Fingerprint (sha1): ' + IcsLowerCase(Sha1Hex) + #13#10;
+        Ext := GetExtensionByName('acmeIdentifier');   { V8.62 } 
+        if Ext.Value <> '' then
+            Result := Result + 'ACME Identifier: ' + Ext.Value + #13#10;
         if ExtendedValidation then
             Result := Result + 'Extended Validation (EV) SSL Server Certificate' + #13#10;
         Result := Result + 'Key Info: ' + KeyInfo + #13#10;                         // Oct 2015
@@ -1150,9 +1177,6 @@ end;
 
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure TfrmPemTool1.SetCertProps;
-const
-    digestlist: array [0..3] of TEvpDigest =
-        (Digest_sha1, Digest_sha256, Digest_sha384, Digest_sha512);
 begin
     CertCommonName.Text := Trim(CertCommonName.Text);
     with FSslCertTools do begin
@@ -1192,7 +1216,7 @@ begin
         ExpireDays        := atoi(CertDays.Text);
 //        SerialNum
         AddComments       := CertAddComment.Checked;
-        CertDigest        := digestlist[CertSignHash.ItemIndex];
+        CertDigest        := DigestDispList[CertSignHash.ItemIndex];  { V8.62 }
         SerialNum         := 0;   { V8.46 force random serial }
     end;
 end;
@@ -2098,10 +2122,11 @@ end;
 {* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *}
 procedure TfrmPemTool1.About1Click(Sender: TObject);
 begin
-   ShowMessage(
-               PemToolName + #13#10
-             +  CopyRight + ' ' + PemToolDate +
-             'SSL Version: ' + OpenSslVersion + ', Dir: ' + GLIBEAY_DLL_FileName);
+   ShowMessage(PemToolName + #13#10 +
+               CopyRight + ' ' + PemToolDate + #13#10 +
+               Trim(OverbyteIcsWSocket.CopyRight)  + #13#10 +   { V8.53 }
+               'SSL Version: ' + OpenSslVersion + #13#10 +
+               'Dir: ' + GLIBEAY_DLL_FileName);
 end;
 
 
@@ -2406,7 +2431,7 @@ begin
         { Load a certificate (public key) from PEM file, private key must not exist }
         Cert.LoadFromPemFile(PemFileName);
         { Encrypted string is Base64 encoded }
-        S := String(StrEncRsa(Cert.PublicKey, AnsiString(S), TRUE));
+        S := String(StrEncRsa(Cert.X509PublicKey, AnsiString(S), TRUE));   { V8.52 was PublicKey }
         ShowMessage('RSA encryted and Base64 encoded:'#13#10 + S);
     finally
         Cert.Free;

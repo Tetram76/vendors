@@ -4,11 +4,10 @@ Author:       François PIETTE
 Description:  TFtpServer class encapsulate the FTP protocol (server side)
               See RFC-959 for a complete protocol description.
 Creation:     April 21, 1998
-Version:      8.50
+Version:      8.60
 EMail:        francois.piette@overbyte.be  http://www.overbyte.be
-Support:      Use the mailing list twsocket@elists.org
-              Follow "support" link at http://www.overbyte.be for subscription.
-Legal issues: Copyright (C) 1998-2017 by François PIETTE
+Support:      https://en.delphipraxis.net/forum/37-ics-internet-component-suite/
+Legal issues: Copyright (C) 1998-2019 by François PIETTE
               Rue de Grady 24, 4053 Embourg, Belgium.
               <francois.piette@overbyte.be>
               SSL implementation includes code written by Arno Garrels,
@@ -423,7 +422,8 @@ Nov 09 2016  V8.37 - Added ExclusiveAddr property to stop other applications lis
                      Added extended exception information, set FSocketErrs = wsErrFriendly for
                        some more friendly messages (without error numbers)
 Oct 5, 2017  V8.50 - Angus stopped LIST/RETV using ..\..\..\ (already stopped for CWD)
-                     Minor fix for MacOS 
+                     Minor fix for MacOS
+Mar 8, 2019  V8.60 - Version and copyright dates only. 
 
 
 Angus pending -
@@ -540,8 +540,8 @@ uses
 
 
 const
-    FtpServerVersion         = 850;
-    CopyRight : String       = ' TFtpServer (c) 1998-2017 F. Piette V8.50 ';
+    FtpServerVersion         = 860;
+    CopyRight : String       = ' TFtpServer (c) 1998-2019 F. Piette V8.60 ';
     UtcDateMaskPacked        = 'yyyymmddhhnnss';         { angus V1.38 }
     DefaultRcvSize           = 16384;    { V7.00 used for both xmit and recv, was 2048, too small }
 

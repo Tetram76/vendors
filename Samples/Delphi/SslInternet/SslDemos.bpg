@@ -14,7 +14,9 @@ PROJECTS = OverbyteIcsHttpsTst.exe OverbyteIcsSslWebServ.exe \
   OverbyteIcsSslMailRcv.exe OverbyteIcsSslNewsRdr.exe OverbyteIcsSimpleSslCli.exe \
   OverbyteIcsSimpleSslServer.exe OverbyteIcsPemTool.exe OverbyteIcsMsVerify.exe \
   OverbyteIcsSslSniSrv.exe OverbyteIcsSslWebAppServer.exe OverbyteIcsSslSmtpServer.exe \
-  OverbyteIcsProxySslServer.exe
+  OverbyteIcsProxySslServer.exe OverbyteIcsJoseTst.exe OverbyteIcsHttpRestTst.exe \
+  OverbyteIcsX509CertsTst.exe OverbyteIcsSslMultiWebServ.exe \
+  OverbyteIcsMailQuTst.exe OverbyteIcsIpStmLogTst.exe OverbyteIcsXferTst.exe
 #------------------------------------------------------------------------------
 default: $(PROJECTS)
 #------------------------------------------------------------------------------
@@ -61,5 +63,27 @@ OverbyteIcsSslWebAppServer.exe: OverbyteIcsSslWebAppServer.dpr
 OverbyteIcsSslSmtpServer.exe: OverbyteIcsSslSmtpServer.dpr
   $(DCC)
 
-OverbyteIcsProxySslServer.exe OverbyteIcsProxySslServer.dpr
+OverbyteIcsProxySslServer.exe: OverbyteIcsProxySslServer.dpr
   $(DCC)
+
+OverbyteIcsJoseTst.exe: OverbyteIcsJoseTst.dpr
+  $(DCC)
+
+OverbyteIcsHttpRestTst.exe: OverbyteIcsHttpRestTst.dpr
+  $(DCC)
+
+OverbyteIcsX509CertsTst.exe: OverbyteIcsX509CertsTst.dpr
+  $(DCC)
+
+OverbyteIcsSslMultiWebServ.exe: OverbyteIcsSslMultiWebServ.dpr
+  $(DCC)
+
+OverbyteIcsMailQuTst.exe: OverbyteIcsMailQuTst.dpr
+  $(DCC)
+
+OverbyteIcsIpStmLogTst.exe: OverbyteIcsIpStmLogTst.dpr
+  $(DCC)
+
+OverbyteIcsXferTst.exe: OverbyteIcsXferTst.dpr
+  $(DCC)
+

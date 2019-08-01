@@ -13,6 +13,7 @@ object ProxyForm: TProxyForm
   Font.Name = 'MS Sans Serif'
   Font.Style = []
   OldCreateOrder = True
+  OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
   object Label1: TLabel
@@ -53,9 +54,9 @@ object ProxyForm: TProxyForm
   object lbl1: TLabel
     Left = 291
     Top = 35
-    Width = 58
+    Width = 61
     Height = 13
-    Caption = 'SSL Version'
+    Caption = 'SSL Security'
   end
   object lbl2: TLabel
     Left = 216
@@ -120,18 +121,25 @@ object ProxyForm: TProxyForm
   object SslVersionList: TComboBox
     Left = 363
     Top = 32
-    Width = 108
+    Width = 182
     Height = 21
     Style = csDropDownList
     ItemHeight = 13
     TabOrder = 5
     Items.Strings = (
-      'Best Version'
-      'SSLv2'
-      'SSLv3'
-      'TLSv1'
-      'TLSv1.1'
-      'TLSv1.2')
+      'Ignore'
+      'None'
+      'SSLv3 Only'
+      'TLSv1.2 Only'
+      'TLSv1.3 Only'
+      'TLSv1 or better'
+      'TLSv1.1 or better'
+      'TLSv1.2 or better'
+      'Backward Ciphers'
+      'Intermedate Ciphers'
+      'High Ciphers, 2048 keys'
+      'High Ciphers, 3072 keys'
+      'High Ciphers, 7680 keys')
   end
   object SslAcceptableHostsEdit: TEdit
     Left = 216

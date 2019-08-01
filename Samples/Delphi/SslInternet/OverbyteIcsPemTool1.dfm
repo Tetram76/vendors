@@ -29,12 +29,16 @@ object frmPemTool1: TfrmPemTool1
     Top = 0
     Width = 880
     Height = 759
-    ActivePage = TabViewCerts
+    ActivePage = TabNew
     Align = alClient
     TabOrder = 0
     OnChange = PageControl1Change
     object TabCertLv: TTabSheet
       Caption = 'List Certificates'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object LvCerts: TListView
         Left = 0
         Top = 0
@@ -184,6 +188,10 @@ object frmPemTool1: TfrmPemTool1
     object TabImport: TTabSheet
       Caption = 'Import Certificates'
       ImageIndex = 1
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       DesignSize = (
         872
         730)
@@ -285,7 +293,7 @@ object frmPemTool1: TfrmPemTool1
         Height = 22
         Hint = 'Select a Windows store type'
         Style = csDropDownList
-        ItemHeight = 14
+        ItemHeight = 0
         TabOrder = 0
         Items.Strings = (
           'Certificate Authorities'
@@ -405,6 +413,10 @@ object frmPemTool1: TfrmPemTool1
     object TabViewCerts: TTabSheet
       Caption = 'Create Certificates'
       ImageIndex = 2
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object BoxLoadCert: TGroupBox
         Left = 3
         Top = 3
@@ -1251,8 +1263,8 @@ object frmPemTool1: TfrmPemTool1
           Caption = 'E-Mail address:'
         end
         object lbDays: TLabel
-          Left = 437
-          Top = 170
+          Left = 355
+          Top = 160
           Width = 61
           Height = 14
           Caption = 'Expiry Days:'
@@ -1336,25 +1348,31 @@ object frmPemTool1: TfrmPemTool1
           TabOrder = 5
         end
         object CertDays: TEdit
-          Left = 518
-          Top = 165
+          Left = 432
+          Top = 155
           Width = 70
           Height = 22
           TabOrder = 10
           Text = '366'
         end
         object CertSignHash: TRadioGroup
-          Left = 624
-          Top = 170
-          Width = 185
-          Height = 81
+          Left = 570
+          Top = 175
+          Width = 271
+          Height = 71
           Caption = 'Sign Digest Hash'
-          ItemIndex = 1
+          Columns = 3
+          ItemIndex = 2
           Items.Strings = (
             'SHA1 (old)'
+            'SHA224'
             'SHA256'
             'SHA384'
-            'SHA512')
+            'SHA512'
+            'SHA3_224'
+            'SHA3_256'
+            'SHA3_384'
+            'SHA3_512')
           TabOrder = 12
         end
         object CertDescr: TEdit
@@ -1515,8 +1533,8 @@ object frmPemTool1: TfrmPemTool1
         object NewCertCopyExt: TCheckBox
           Left = 437
           Top = 193
-          Width = 180
-          Height = 38
+          Width = 124
+          Height = 53
           Caption = 'Copy Request Extensions for New Certificate'
           TabOrder = 11
           WordWrap = True
@@ -1525,33 +1543,38 @@ object frmPemTool1: TfrmPemTool1
       object GroupKeys: TGroupBox
         Left = 3
         Top = 10
-        Width = 498
+        Width = 553
         Height = 311
         Caption = 'New Private and Public Key Properties'
         TabOrder = 1
         object KeyType: TRadioGroup
           Left = 10
-          Top = 20
-          Width = 276
-          Height = 181
+          Top = 15
+          Width = 251
+          Height = 274
           Caption = 'Key Type'
           ItemIndex = 1
           Items.Strings = (
             'RSA 1,024 bits (level 1 - 80 bits)'
             'RSA 2,048 bits (level 2 - 112 bits) '
             'RSA 3,072 bits (level 3 - 128 bits, NIST min)'
-            'RSA 4,096 bits (level 3 - 148 bits)'
+            'RSA 4,096 bits (level 3 - 128 bits)'
             'RSA 7,680 bits (level 4 - 192 bits)'
             'RSA 15,360 bits (level 5 - 256 bits)'
             'Elliptic Curve secp256  (level 3 - 128 bits) '
             'Elliptic Curve secp384  (level 4 - 192 bits) '
             'Elliptic Curve secp512  (level 5 - 256 bits) '
-            'EdDSA Ed25519 (level 3 - 128 bits)  ')
+            'EdDSA ED25519 (level 3 - 128 bits)  '
+            'RSA-PSS 2,048 bits (level 2 - 112 bits) '
+            'RSA-PSS 3,072 bits (level 3 - 128 bits)'
+            'RSA-PSS 4,096 bits (level 3 - 128 bits)'
+            'RSA-PSS 7,680 bits (level 4 - 192 bits)'
+            'RSA-PSS 15,360 bits (level 5 - 256 bits)')
           TabOrder = 0
         end
         object KeyEncrypt: TRadioGroup
-          Left = 300
-          Top = 20
+          Left = 275
+          Top = 15
           Width = 185
           Height = 129
           Caption = 'Key File Encryption'
@@ -1567,18 +1590,18 @@ object frmPemTool1: TfrmPemTool1
           TabOrder = 1
         end
         object KeyPairLines: TMemo
-          Left = 140
-          Top = 215
-          Width = 346
-          Height = 89
+          Left = 275
+          Top = 187
+          Width = 261
+          Height = 114
           Lines.Strings = (
             '')
           ScrollBars = ssBoth
           TabOrder = 3
         end
         object doGenKey: TButton
-          Left = 10
-          Top = 220
+          Left = 275
+          Top = 158
           Width = 109
           Height = 21
           Caption = 'Generate Key Pair'
@@ -1587,16 +1610,16 @@ object frmPemTool1: TfrmPemTool1
         end
       end
       object GroupDHParam: TGroupBox
-        Left = 521
+        Left = 570
         Top = 15
-        Width = 340
+        Width = 291
         Height = 306
         Caption = 'New DH Parameters'
         TabOrder = 2
         object Label15: TLabel
           Left = 20
           Top = 117
-          Width = 296
+          Width = 257
           Height = 28
           Caption = 
             'Beware DH Params can take a long time to calculate, several hour' +
@@ -1636,7 +1659,7 @@ object frmPemTool1: TfrmPemTool1
         object DHParamsLines: TMemo
           Left = 15
           Top = 210
-          Width = 311
+          Width = 246
           Height = 89
           Lines.Strings = (
             '')
@@ -1709,7 +1732,7 @@ object frmPemTool1: TfrmPemTool1
     Left = 260
     Top = 751
     Bitmap = {
-      494C010103002800B80010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C010103000500340010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000001000000001002000000000000010
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000

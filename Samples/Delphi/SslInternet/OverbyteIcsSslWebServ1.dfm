@@ -449,7 +449,7 @@ object SslWebServForm: TSslWebServForm
     object ListenAddr: TComboBox
       Left = 300
       Top = 4
-      Width = 128
+      Width = 186
       Height = 21
       Style = csDropDownList
       ItemHeight = 13
@@ -514,7 +514,7 @@ object SslWebServForm: TSslWebServForm
       Top = 196
       Width = 169
       Height = 21
-      ItemHeight = 13
+      ItemHeight = 0
       TabOrder = 18
       Text = 'SslSecLevel'
     end
@@ -585,12 +585,16 @@ object SslWebServForm: TSslWebServForm
     SslEnable = True
     SslContext = SslContext1
     IcsHosts = <>
+    SslCliCertMethod = sslCliCertNone
+    SslCertAutoOrder = False
+    CertExpireDays = 30
     OnSslVerifyPeer = SslHttpServer1SslVerifyPeer
     OnSslSetSessionIDContext = SslHttpServer1SslSetSessionIDContext
     OnSslSvrNewSession = SslHttpServer1SslSvrNewSession
     OnSslSvrGetSession = SslHttpServer1SslSvrGetSession
     OnSslHandshakeDone = SslHttpServer1SslHandshakeDone
     OnSslServerName = SslHttpServer1SslServerName
+    OnSslAlpnSelect = SslHttpServer1SslAlpnSelect
     Left = 42
     Top = 306
   end
@@ -605,12 +609,13 @@ object SslWebServForm: TSslWebServForm
       'y89hX5iXD/v3BurTkN3rG12JoTypQ3W1VD1lEfRrJm8rbvQTqO0RCSgxc2KwIULb'
       '3ONsf1ln/Lb+UuRiUpGeb4GQqPDkn7XW8wIBAg=='
       '-----END DH PARAMETERS-----')
-    SslVerifyPeer = False
+    SslVerifyPeer = True
     SslVerifyDepth = 9
     SslVerifyFlags = []
     SslCheckHostFlags = []
     SslSecLevel = sslSecLevel80bits
     SslOptions = [sslOpt_MICROSOFT_SESS_ID_BUG, sslOpt_NETSCAPE_CHALLENGE_BUG, sslOpt_NETSCAPE_REUSE_CIPHER_CHANGE_BUG, sslOpt_MICROSOFT_BIG_SSLV3_BUFFER, sslOpt_SSLEAY_080_CLIENT_DH_BUG, sslOpt_TLS_D5_BUG, sslOpt_TLS_BLOCK_PADDING_BUG, sslOpt_TLS_ROLLBACK_BUG, sslOpt_SINGLE_DH_USE, sslOpt_NO_SSLv2, sslOpt_NO_SSLv3, sslOpt_NETSCAPE_CA_DN_BUG, sslOpt_NO_SESSION_RESUMPTION_ON_RENEGOTIATION, sslOpt_NETSCAPE_DEMO_CIPHER_CHANGE_BUG]
+    SslOptions2 = []
     SslVerifyPeerModes = [SslVerifyMode_PEER]
     SslSessionCacheModes = [sslSESS_CACHE_SERVER, sslSESS_CACHE_NO_INTERNAL_LOOKUP, sslSESS_CACHE_NO_INTERNAL_STORE]
     SslCipherList = 'ALL:!ADH:RC4+RSA:+SSLv2:@STRENGTH'
@@ -618,6 +623,8 @@ object SslWebServForm: TSslWebServForm
     SslMinVersion = sslVerSSL3
     SslMaxVersion = sslVerMax
     SslECDHMethod = sslECDHNone
+    SslCryptoGroups = 'P-256:X25519:P-384:P-512'
+    SslCliSecurity = sslCliSecIgnore
     SslSessionTimeout = 300
     SslSessionCacheSize = 20480
     SslDefaultSessionIDContext = 'Webservertest'

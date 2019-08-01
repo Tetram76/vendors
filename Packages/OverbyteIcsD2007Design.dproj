@@ -61,9 +61,9 @@
     </DelphiCompile>
     <DCCReference Include="..\Source\OverbyteIcsReg.pas" />
     <DCCReference Include="..\Source\OverByteIcsWSocketE.pas" />
-    <DCCReference Include="C:\Users\angus\Desktop\designide.dcp" />
-    <DCCReference Include="C:\Users\angus\Desktop\OverbyteIcsD2007Run.dcp" />
-    <DCCReference Include="C:\Users\angus\Desktop\rtl.dcp" />
-    <DCCReference Include="C:\Users\angus\Desktop\vcl.dcp" />
+    <DCCReference Include="C:\Magdelp\fileserver\designide.dcp" />
+    <DCCReference Include="C:\Magdelp\fileserver\OverbyteIcsD2007Run.dcp" />
+    <DCCReference Include="C:\Magdelp\fileserver\rtl.dcp" />
+    <DCCReference Include="C:\Magdelp\fileserver\vcl.dcp" />
   </ItemGroup>
 </Project>
