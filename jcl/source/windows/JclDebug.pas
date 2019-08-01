@@ -227,6 +227,7 @@ type
     Segment: Word;
     VA: DWORD; // VA relative to (module base address + $10000)
     LineNumber: Integer;
+    UnitName: PJclMapString;
   end;
 
   TJclMapScanner = class(TJclAbstractMapParser)
@@ -239,6 +240,7 @@ type
     FLineNumbersCnt: Integer;
     FLineNumberErrors: Integer;
     FNewUnitFileName: PJclMapString;
+    FCurrentUnitName: PJclMapString;
     FProcNamesCnt: Integer;
     FSegmentCnt: Integer;
     FLastAccessedSegementIndex: Integer;
@@ -254,6 +256,7 @@ type
     procedure LineNumbersItem(LineNumber: Integer; const Address: TJclMapAddress); override;
     procedure LineNumberUnitItem(UnitName, UnitFileName: PJclMapString); override;
     procedure Scan;
+    function GetLineNumberByIndex(Index: Integer): TJCLMapLineNumber;
   public
     constructor Create(const MapFileName: TFileName; Module: HMODULE); override;
 
@@ -270,6 +273,8 @@ type
     function ProcNameFromAddr(Addr: DWORD; out Offset: Integer): string; overload;
     function SourceNameFromAddr(Addr: DWORD): string;
     property LineNumberErrors: Integer read FLineNumberErrors;
+    property LineNumbersCnt: Integer read FLineNumbersCnt;
+    property LineNumberByIndex[Index: Integer]: TJclMapLineNumber read GetLineNumberByIndex;
   end;
 
 type
@@ -1963,6 +1968,7 @@ begin
     FLineNumbers[FLineNumbersCnt].Segment := FSegmentClasses[SegIndex].Segment;
     FLineNumbers[FLineNumbersCnt].VA := VA;
     FLineNumbers[FLineNumbersCnt].LineNumber := LineNumber;
+    FLineNumbers[FLineNumbersCnt].UnitName := FCurrentUnitName;
     Inc(FLineNumbersCnt);
     Added := True;
     if FNewUnitFileName <> nil then
@@ -1983,6 +1989,12 @@ end;
 procedure TJclMapScanner.LineNumberUnitItem(UnitName, UnitFileName: PJclMapString);
 begin
   FNewUnitFileName := UnitFileName;
+  FCurrentUnitName := UnitName;
+end;
+
+function TJclMapScanner.GetLineNumberByIndex(Index: Integer): TJCLMapLineNumber;
+begin
+  Result := FLineNumbers[Index];
 end;
 
 function TJclMapScanner.IndexOfSegment(Addr: DWORD): Integer;
@@ -3609,7 +3621,7 @@ begin
   begin
     if IncludeVAddress then
     begin
-      OffsetStr :=  Format('(%p) ', [VAddress]);
+      OffsetStr := Format('(%p) ', [VAddress]);
       Result := OffsetStr + Result;
     end;
     if IncludeModuleName then
@@ -4604,7 +4616,7 @@ function GetLocationInfoStr(const Addr: Pointer; IncludeModuleName, IncludeAddre
 var
   Info, StartProcInfo: TJclLocationInfo;
   OffsetStr, StartProcOffsetStr, FixedProcedureName, UnitNameWithoutUnitscope: string;
-  Module : HMODULE;
+  Module: HMODULE;
 begin
   OffsetStr := '';
   if GetLocationInfo(Addr, Info) then
@@ -5280,13 +5292,13 @@ var
   AlignedContext: PContext;
 begin
   Result := nil;
-  GetMem(ContextMemory, SizeOf(TContext) + 15);
+  ContextMemory := AllocMem(SizeOf(TContext) + 15);
   try
-    if (Cardinal(ContextMemory) and 15) <> 0 then
-      AlignedContext := PContext((Cardinal(ContextMemory) + 16) and $FFFFFFF0)
+    if (TJclAddr(ContextMemory) and 15) <> 0 then
+      // PAnsiChar: TJclAddr is signed and would cause an int overflow for half the address space
+      AlignedContext := PContext(TJclAddr(PAnsiChar(ContextMemory) + 16) and -16)
     else
       AlignedContext := ContextMemory;
-    ResetMemory(AlignedContext^, SizeOf(AlignedContext^));
     AlignedContext^.ContextFlags := CONTEXT_FULL;
     {$IFDEF CPU32}
     if GetThreadContext(ThreadHandle, AlignedContext^) then

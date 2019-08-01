@@ -3888,7 +3888,7 @@ begin
     // EFCreateError/EFOpenError don't save the error code, so access denied
     // and the like become generic "Unknown error" HRESULTs.  If GetLastError
     // matches the error message, use it.
-    if AnsiEndsStr(EStreamError(ExceptObject).Message, SysErrorMessage(GetLastError)) then
+    if AnsiEndsStr(SysErrorMessage(GetLastError), EStreamError(ExceptObject).Message) then
         Result := HResultFromWin32(GetLastError)
     else
         Result := E_FAIL
@@ -4989,6 +4989,7 @@ end;
 procedure TJclCompressionArchive.ClearItems;
 begin
   FItems.Clear;
+  FCurrentItemIndex := -1;
 end;
 
 procedure TJclCompressionArchive.ClearOperationSuccess;
@@ -9421,7 +9422,7 @@ end;
 
 function TJclZipUpdateArchive.GetSupportedCompressionMethods: TJclCompressionMethods;
 begin
-  Result := [cmCopy,cmDeflate,cmDeflate64,cmBZip2,cmLZMA];
+  Result := [cmCopy,cmDeflate,cmDeflate64,cmBZip2,cmLZMA,cmPPMd];
 end;
 
 function TJclZipUpdateArchive.GetSupportedEncryptionMethods: TJclEncryptionMethods;
