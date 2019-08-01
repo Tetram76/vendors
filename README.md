@@ -49,7 +49,7 @@ git push -u origin XXX
 
 ## Append submodule to main repository
 
-From main repository root:
+**__From main repository root:__**
 
 ```shell
 git submodule add -b XXX   -- "https://github.com/Tetram76/vendors.git" "libs/delphi/XXX"
