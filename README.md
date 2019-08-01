@@ -72,9 +72,12 @@ This update XXX vendor branch.
 
 ```shell
 # if in already cloned repository
+# check if the branch already exists
+git branch
+# if the branch exists
 git checkout XXX
 git pull
-# else
+# else (also if the repository is not cloned yet)
 git clone -b XXX https://github.com/Tetram76/vendors.git
 ```
 
