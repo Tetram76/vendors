@@ -52,10 +52,8 @@ git push -u origin XXX
 From main repository root:
 
 ```shell
-git submodule add --name XXX -b XXX   -- "https://github.com/Tetram76/vendors.git" "libs/delphi/XXX"
+git submodule add -b XXX   -- "https://github.com/Tetram76/vendors.git" "libs/delphi/XXX"
 ```
-
-"name" parameter is optionnal but it saves from a lot of trouble in case of submodule re-build (i.e. remove/re-add)
 
 ## Remove submodule from main repository
 
@@ -64,6 +62,7 @@ From main repository root:
 ```shell
 git submodule deinint --force libs/delphi/XXX
 git rm libs/delphi/XXX
+rm -rf .git/modules/libs/delphi/XXX
 ```
 
 ## Update an existing vendor branch
