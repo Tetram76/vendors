@@ -24,7 +24,7 @@ git commit -m "Add XXX vendor branch"
 #### From a GIT source
 
 ```shell
-git remote add -t master XXX <url-or-path-to-XXX-repos>
+git remote add -t master XXX "`.origin.url`"
 git fetch -n XXX
 git merge -X subtree=. --allow-unrelated-histories --no-commit XXX/master
 ```
@@ -92,7 +92,7 @@ git pull
 # check if the remote exists
 git remote
 # if remote does not exist yet
-git remote add -t master XXX <url-or-path-to-XXX-repos>
+git remote add -t master XXX "`.origin.url`"
 # and then
 git fetch -n XXX
 git merge -X subtree=. --allow-unrelated-histories --no-commit XXX/master
