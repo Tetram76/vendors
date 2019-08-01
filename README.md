@@ -71,14 +71,17 @@ This update XXX vendor branch.
 ### Prepare the branch
 
 ```shell
-# if in already cloned repository
-# check if the branch already exists
+# if the repository is not cloned
+git clone -b XXX https://github.com/Tetram76/vendors.git
+# else (also if the repository is not cloned yet)
+# check if a local branch already exists
 git branch
 # if the branch exists
 git checkout XXX
+# else
+git checkout --track origin/XXX
+# in all cases and to be sure
 git pull
-# else (also if the repository is not cloned yet)
-git clone -b XXX https://github.com/Tetram76/vendors.git
 ```
 
 ### Get the files
