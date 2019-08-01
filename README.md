@@ -62,7 +62,7 @@ git submodule add --name XXX -b XXX   -- "https://github.com/Tetram76/vendors.gi
 From main repository root:
 
 ```shell
-git submodule deinint libs/delphi/XXX
+git submodule deinint --force libs/delphi/XXX
 git rm libs/delphi/XXX
 ```
 
