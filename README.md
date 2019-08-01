@@ -52,8 +52,10 @@ git push -u origin XXX
 From main repository root:
 
 ```shell
-git submodule add  -b XXX   -- "https://github.com/Tetram76/vendors.git" "libs/delphi/XXX"
+git submodule add --name XXX -b XXX   -- "https://github.com/Tetram76/vendors.git" "libs/delphi/XXX"
 ```
+
+"name" parameter is optionnal but it saves from a lot of trouble in case of submodule re-build (i.e. remove/re-add)
 
 ## Remove submodule from main repository
 
