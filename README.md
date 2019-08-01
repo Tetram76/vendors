@@ -97,6 +97,8 @@ git remote add -t master XXX "`cat .origin.url`"
 # and then
 git fetch -n XXX
 git merge -X subtree=. --allow-unrelated-histories --no-commit XXX/master
+git reset HEAD .origin.*
+git checkout .origin.*
 ```
 
 #### From a SVN source
@@ -104,6 +106,8 @@ git merge -X subtree=. --allow-unrelated-histories --no-commit XXX/master
 ```shell
 # will remove not shared modifications
 git rm -rf .
+git reset HEAD .origin.*
+git checkout .origin.*
 svn checkout "`cat .origin.url`" .
 git add .
 git rm -rf .svn
@@ -118,8 +122,6 @@ git add . .svn
 ### Commit & Push
 
 ```shell
-git reset HEAD .origin.*
-git checkout .origin.*
 git commit -m "Synchronized with public repository"
 git push
 ```
