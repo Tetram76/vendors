@@ -1,0 +1,10 @@
+This text  file  lists  optional  3rd-party  components  included  in  the
+ALGLIB for Delphi, their functionality and  special  licensing  terms  (if
+there  are any). If you decide  not  to  use  these  optional  components,
+their licensing terms do not apply to you.
+
+===
+
+As  of  current  version,  there  are  no  3rd-party components covered by
+separate license agreements.
+
