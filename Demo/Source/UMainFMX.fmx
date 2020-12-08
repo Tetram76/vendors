@@ -1,0 +1,246 @@
+object IconFontImageListForm: TIconFontImageListForm
+  Left = 0
+  Top = 0
+  Caption = 
+    'IconFont ImageList Demo - Copyright (c) Ethea S.r.l. - Apache 2.' +
+    '0 Open Source License'
+  ClientHeight = 517
+  ClientWidth = 513
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop]
+  OnCreate = FormCreate
+  DesignerMasterStyle = 0
+  object Panel1: TPanel
+    Align = Bottom
+    Position.Y = 407.000000000000000000
+    Size.Width = 513.000000000000000000
+    Size.Height = 110.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 1
+    object NextButton: TButton
+      Position.X = 104.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 89.000000000000000000
+      Size.Height = 33.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 2
+      Text = 'Next Image...'
+      OnClick = NextButtonClick
+    end
+    object edtColor: TColorComboBox
+      DropDownKind = Custom
+      Color = claBlack
+      DisableFocusEffect = False
+      ItemIndex = 7
+      Position.X = 8.000000000000000000
+      Position.Y = 84.000000000000000000
+      Size.Width = 161.000000000000000000
+      Size.Height = 22.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 6
+      OnChange = edtColorChange
+    end
+    object RandomButton: TButton
+      Position.X = 8.000000000000000000
+      Position.Y = 48.000000000000000000
+      Size.Width = 89.000000000000000000
+      Size.Height = 33.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 3
+      Text = 'Build random...'
+      OnClick = RandomButtonClick
+    end
+    object IconsLabel: TLabel
+      Position.X = 104.000000000000000000
+      Position.Y = 44.000000000000000000
+      Text = 'Icons:'
+      TabOrder = 4
+    end
+    object CurrentLabel: TLabel
+      Position.X = 104.000000000000000000
+      Position.Y = 60.000000000000000000
+      Text = 'Current:'
+      TabOrder = 5
+    end
+    object AutoSizeCheckBox: TCheckBox
+      IsChecked = True
+      Position.X = 176.000000000000000000
+      Position.Y = 88.000000000000000000
+      TabOrder = 7
+      Text = 'AutoSize'
+      OnChange = AutoSizeCheckBoxChange
+    end
+    object PrevButton: TButton
+      Position.X = 8.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 89.000000000000000000
+      Size.Height = 33.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 0
+      Text = 'Prev.Image...'
+      OnClick = PrevButtonClick
+    end
+    object ShowEditorButton: TButton
+      Position.X = 416.000000000000000000
+      Position.Y = 8.000000000000000000
+      Size.Width = 89.000000000000000000
+      Size.Height = 33.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 1
+      Text = 'Show Editor...'
+      OnClick = ShowEditorButtonClick
+    end
+    object SpinBox1: TSpinBox
+      Touch.InteractiveGestures = [LongTap, DoubleTap]
+      TabOrder = 8
+      Cursor = crIBeam
+      DecimalDigits = 0
+      Max = 1200.000000000000000000
+      Value = 32.000000000000000000
+      Position.X = 208.000000000000000000
+      Position.Y = 16.000000000000000000
+      OnChange = SpinBox1Change
+    end
+  end
+  object ImageView: TListBox
+    Align = Left
+    Position.Y = 113.000000000000000000
+    Size.Width = 161.000000000000000000
+    Size.Height = 294.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 5
+    DisableFocusEffect = True
+    ItemHeight = 32.000000000000000000
+    ItemWidth = 150.000000000000000000
+    Images = IconFontsImageList
+    DefaultItemStyles.ItemStyle = ''
+    DefaultItemStyles.GroupHeaderStyle = ''
+    DefaultItemStyles.GroupFooterStyle = ''
+    Viewport.Width = 157.000000000000000000
+    Viewport.Height = 290.000000000000000000
+    object ListBoxItem1: TListBoxItem
+      AutoTranslate = False
+      ImageIndex = 0
+      Size.Width = 150.000000000000000000
+      Size.Height = 32.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 0
+      Text = 'ListBoxItem1'
+    end
+    object ListBoxItem2: TListBoxItem
+      ImageIndex = 1
+      Position.Y = 32.000000000000000000
+      Size.Width = 150.000000000000000000
+      Size.Height = 32.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 1
+      Text = 'ListBoxItem2'
+    end
+    object ListBoxItem3: TListBoxItem
+      ImageIndex = 2
+      Position.Y = 64.000000000000000000
+      Size.Width = 150.000000000000000000
+      Size.Height = 32.000000000000000000
+      Size.PlatformDefault = False
+      TabOrder = 2
+      Text = 'ListBoxItem3'
+    end
+  end
+  object V: TPanel
+    Align = Top
+    Size.Width = 513.000000000000000000
+    Size.Height = 113.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 7
+    object Glyph2: TGlyph
+      Align = Left
+      Size.Width = 137.000000000000000000
+      Size.Height = 113.000000000000000000
+      Size.PlatformDefault = False
+      ImageIndex = 0
+      Images = IconFontsImageList
+    end
+    object Glyph1: TGlyph
+      Align = Left
+      Position.X = 137.000000000000000000
+      Size.Width = 96.000000000000000000
+      Size.Height = 113.000000000000000000
+      Size.PlatformDefault = False
+      ImageIndex = 1
+      Images = IconFontsImageList
+    end
+  end
+  object Glyph: TGlyph
+    Align = Client
+    Size.Width = 352.000000000000000000
+    Size.Height = 294.000000000000000000
+    Size.PlatformDefault = False
+    ImageIndex = 2
+    Images = IconFontsImageList
+  end
+  object IconFontsImageList: TIconFontsImageList
+    Source = <
+      item
+        MultiResBitmap.Height = 64
+        MultiResBitmap.Width = 64
+        MultiResBitmap.LoadSize = 0
+        MultiResBitmap = <
+          item
+            Size = 113
+          end>
+        IconName = 'account'
+        FontIconDec = 983044
+        Opacity = 1.000000000000000000
+      end
+      item
+        MultiResBitmap = <
+          item
+            Size = 96
+          end>
+        IconName = 'account-alert'
+        FontIconDec = 983045
+        FontColor = claRed
+        Opacity = 1.000000000000000000
+      end
+      item
+        MultiResBitmap = <
+          item
+            Size = 294
+          end>
+        IconName = 'account-check'
+        FontIconDec = 983048
+        Opacity = 1.000000000000000000
+      end>
+    Destination = <
+      item
+        Layers = <
+          item
+            Name = 'account'
+            SourceRect.Right = 113.000000000000000000
+            SourceRect.Bottom = 113.000000000000000000
+          end>
+      end
+      item
+        Layers = <
+          item
+            Name = 'account-alert'
+            SourceRect.Right = 96.000000000000000000
+            SourceRect.Bottom = 96.000000000000000000
+          end>
+      end
+      item
+        Layers = <
+          item
+            Name = 'account-check'
+            SourceRect.Right = 294.000000000000000000
+            SourceRect.Bottom = 294.000000000000000000
+          end>
+      end>
+    FontName = 'Material Design Icons Desktop'
+    FontColor = claBlack
+    Opacity = 1.000000000000000000
+    Left = 208
+    Top = 144
+  end
+end
